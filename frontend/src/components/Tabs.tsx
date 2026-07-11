@@ -33,7 +33,16 @@ export function Tabs({ tabs, activeTab, onChange }: TabsProps) {
           )
         })}
       </div>
-      <div role="tabpanel">{tabs.find((tab) => tab.id === activeTab)?.content}</div>
+      {tabs.map((tab) => (
+        <div
+          key={tab.id}
+          role="tabpanel"
+          hidden={activeTab !== tab.id}
+          className={activeTab === tab.id ? undefined : 'hidden'}
+        >
+          {tab.content}
+        </div>
+      ))}
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Data } from 'plotly.js'
 import { PlotlyChart } from './PlotlyChart'
 import {
@@ -33,12 +33,32 @@ export function DesignMonitorDashboard({
   stateHistory,
   currentState,
 }: DesignMonitorDashboardProps) {
-  const steps = useMemo(() => extractSimulationSteps(stateHistory), [stateHistory])
+  const steps = useMemo(
+    () => extractSimulationSteps(stateHistory, currentState),
+    [stateHistory, currentState],
+  )
   const summary = useMemo(
     () => buildMonitorSummary(currentState ?? null),
     [currentState],
   )
   const [selectedStep, setSelectedStep] = useState<number | null>(null)
+  const [followLatest, setFollowLatest] = useState(true)
+
+  useEffect(() => {
+    if (followLatest) return
+    if (selectedStep !== null && selectedStep >= steps.length) {
+      setSelectedStep(steps.length - 1)
+    }
+  }, [steps.length, selectedStep, followLatest])
+
+  useEffect(() => {
+    if (followLatest && steps.length > 0) {
+      setSelectedStep(steps.length - 1)
+    }
+  }, [followLatest, steps.length, steps.at(-1)?.metrics])
+
+  const chartRevision =
+    steps.length > 0 ? `${steps.length}-${JSON.stringify(steps.at(-1)?.metrics)}` : '0'
 
   const activeStepIndex =
     selectedStep !== null && selectedStep >= 0 && selectedStep < steps.length
@@ -59,15 +79,26 @@ export function DesignMonitorDashboard({
     <div className="flex flex-col gap-4">
       {summary && <SummaryCards summary={summary} stepCount={steps.length} />}
 
-      <MetricsProgressPanel steps={steps} />
-      <ParametersPanel steps={steps} />
+      <MetricsProgressPanel steps={steps} revision={chartRevision} />
+      <ParametersPanel steps={steps} revision={chartRevision} />
       <SimulationPanel
         steps={steps}
         step={activeStep}
         stepIndex={activeStepIndex}
-        onSelectStep={setSelectedStep}
+        revision={chartRevision}
+        onSelectStep={(index) => {
+          setFollowLatest(index === steps.length - 1)
+          setSelectedStep(index)
+        }}
       />
-      <IterationsTable steps={steps} selectedIndex={activeStepIndex} onSelectStep={setSelectedStep} />
+      <IterationsTable
+        steps={steps}
+        selectedIndex={activeStepIndex}
+        onSelectStep={(index) => {
+          setFollowLatest(index === steps.length - 1)
+          setSelectedStep(index)
+        }}
+      />
     </div>
   )
 }
@@ -134,7 +165,13 @@ function MetricCard({
   )
 }
 
-function MetricsProgressPanel({ steps }: { steps: SimulationStep[] }) {
+function MetricsProgressPanel({
+  steps,
+  revision,
+}: {
+  steps: SimulationStep[]
+  revision: string
+}) {
   const x = steps.map((step) => step.globalStep)
 
   const traces: Data[] = [
@@ -186,6 +223,7 @@ function MetricsProgressPanel({ steps }: { steps: SimulationStep[] }) {
       <PlotlyChart
         data={traces}
         height={320}
+        revision={revision}
         layout={{
           grid: { rows: 1, columns: 3, pattern: 'independent' },
           xaxis: { title: { text: 'Step' } },
@@ -201,7 +239,13 @@ function MetricsProgressPanel({ steps }: { steps: SimulationStep[] }) {
   )
 }
 
-function ParametersPanel({ steps }: { steps: SimulationStep[] }) {
+function ParametersPanel({
+  steps,
+  revision,
+}: {
+  steps: SimulationStep[]
+  revision: string
+}) {
   const paramNames = useMemo(() => {
     const names = new Set<string>()
     for (const step of steps) {
@@ -231,6 +275,7 @@ function ParametersPanel({ steps }: { steps: SimulationStep[] }) {
       <PlotlyChart
         data={traces}
         height={320}
+        revision={revision}
         layout={{
           xaxis: { title: { text: 'Simulation step' } },
           yaxis: { title: { text: 'Parameter value' } },
@@ -244,11 +289,13 @@ function SimulationPanel({
   steps,
   step,
   stepIndex,
+  revision,
   onSelectStep,
 }: {
   steps: SimulationStep[]
   step: SimulationStep | undefined
   stepIndex: number
+  revision: string
   onSelectStep: (index: number) => void
 }) {
   if (!step) return null
@@ -334,6 +381,7 @@ function SimulationPanel({
       <PlotlyChart
         data={traces}
         height={420}
+        revision={`${revision}-${stepIndex}`}
         layout={{
           grid: { rows: 2, columns: 1, pattern: 'independent', roworder: 'top to bottom' },
           xaxis: { title: { text: 'Time (s)' }, anchor: 'y' },

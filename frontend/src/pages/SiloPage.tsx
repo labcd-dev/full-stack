@@ -10,6 +10,7 @@ import { StatusMessage } from '../components/StatusMessage'
 import { Tabs } from '../components/Tabs'
 import { usePipeline } from '../context/PipelineContext'
 import { useJobStream } from '../hooks/useJobStream'
+import { useMonitorState } from '../hooks/useMonitorState'
 import { usePoll } from '../hooks/usePoll'
 import {
   btnLink,
@@ -43,7 +44,7 @@ export function SiloPage() {
     return siloApi.monitor(jobId)
   }, [jobId])
 
-  const poll = usePoll(fetchMonitor, 2000, started && !stream.isDone)
+  const poll = usePoll(fetchMonitor, 2000, started)
 
   useEffect(() => {
     healthApi.models().then((res) => setModels(res.llm_models)).catch(() => {})
@@ -81,7 +82,10 @@ export function SiloPage() {
     }
   }
 
-  const monitorState = poll.data as Record<string, unknown> | null
+  const monitorState = useMonitorState(
+    poll.data as Record<string, unknown> | null | undefined,
+    stream.events,
+  )
   const llmResponses = (monitorState?.llm_responses ?? []) as Array<Record<string, unknown>>
   const progressHistory = (monitorState?.progress_history ?? []) as Array<Record<string, unknown>>
   const stateHistory = (monitorState?.state_history ?? []) as Array<Record<string, unknown>>
@@ -111,7 +115,7 @@ export function SiloPage() {
             />
           )}
           {stream.error && <StatusMessage type="error" message={stream.error} />}
-          {stateHistory.length > 0 && (
+          {started && monitorState && (
             <DesignMonitorDashboard
               stateHistory={stateHistory}
               currentState={currentState}
@@ -120,7 +124,7 @@ export function SiloPage() {
           {!started && (
             <p className={mutedText}>Start a design to see live monitor data from the API.</p>
           )}
-          {started && stateHistory.length === 0 && (
+          {started && !monitorState && (
             <p className={mutedText}>Waiting for simulation data...</p>
           )}
         </>

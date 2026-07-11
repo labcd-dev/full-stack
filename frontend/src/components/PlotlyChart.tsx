@@ -7,9 +7,16 @@ interface PlotlyChartProps {
   layout?: Partial<Layout>
   height?: number
   className?: string
+  revision?: number | string
 }
 
-export function PlotlyChart({ data, layout = {}, height = 360, className }: PlotlyChartProps) {
+export function PlotlyChart({
+  data,
+  layout = {},
+  height = 360,
+  className,
+  revision,
+}: PlotlyChartProps) {
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'
 
@@ -31,6 +38,7 @@ export function PlotlyChart({ data, layout = {}, height = 360, className }: Plot
       bgcolor: 'transparent',
     },
     ...layout,
+    datarevision: revision ?? layout.datarevision,
     xaxis: {
       gridcolor: isDark ? '#30363d' : '#e8edf5',
       zerolinecolor: isDark ? '#484f58' : '#dde3ef',

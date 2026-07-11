@@ -201,7 +201,11 @@ export function HomePage() {
 
           {!editMode ? (
             <>
-              <CodePreview value={pipeline.fileContent} readOnly />
+              <CodePreview
+                value={pipeline.fileContent}
+                readOnly
+                language={pipeline.fileType === 'matlab' ? 'matlab' : 'python'}
+              />
               <div className="flex gap-3 flex-wrap mt-4">
                 <button type="button" className={btnBase} onClick={() => setEditMode(true)}>
                   Edit Code
@@ -216,6 +220,7 @@ export function HomePage() {
               <CodePreview
                 value={pipeline.fileContent}
                 onChange={pipeline.updateFileContent}
+                language={pipeline.fileType === 'matlab' ? 'matlab' : 'python'}
               />
               <div className="flex gap-3 flex-wrap mt-4">
                 <button
@@ -237,7 +242,12 @@ export function HomePage() {
       {stage === 'ready' && (
         <>
           <StatusMessage type="success" message="File is ready for the selected pipeline." />
-          <CodePreview value={pipeline.fileContent} readOnly height={300} />
+          <CodePreview
+            value={pipeline.fileContent}
+            readOnly
+            height={300}
+            language={pipeline.fileType === 'matlab' ? 'matlab' : 'python'}
+          />
           <button type="button" className={`${btnPrimary} ${btnWide}`} onClick={proceedToPipeline}>
             Continue to {pipeline.pipeline === 'muloDesign' ? 'Recommender' : 'Silo Designer'}
           </button>

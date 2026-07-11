@@ -1,0 +1,139 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --app-primary: #1f77b4;
+  --app-primary-foreground: #ffffff;
+  --app-surface: #f4f6fb;
+  --app-surface-elevated: #ffffff;
+  --app-surface-muted: #f8fafc;
+  --app-surface-hover: #eef2f8;
+  --app-border: #dde3ef;
+  --app-border-subtle: #e8edf5;
+  --app-border-input: #ccd4e0;
+  --app-muted: #667788;
+  --app-muted-text: #556677;
+  --app-foreground: #1a1a2e;
+  --app-foreground-secondary: #334155;
+  --app-foreground-subtle: #8899aa;
+  --app-foreground-faint: #99aabb;
+  --app-progress-track: #e5eaf3;
+  --app-code-bg: #0f172a;
+  --app-code-text: #e2e8f0;
+  --app-param-bg: #f0f7ff;
+  --app-param-border: #cfe3f5;
+  --app-param-key: #5b7a99;
+  --app-param-value: #1a3a5c;
+  --app-label: #6b7c93;
+  --app-status-info-bg: #e8f4fd;
+  --app-status-info-text: #0c4a6e;
+  --app-status-success-bg: #e8f7ee;
+  --app-status-success-text: #166534;
+  --app-status-warning-bg: #fff7e6;
+  --app-status-warning-text: #92400e;
+  --app-status-error-bg: #fdecec;
+  --app-status-error-text: #991b1b;
+  --app-badge-strategy-bg: #ede9fe;
+  --app-badge-strategy-text: #5b21b6;
+  --app-badge-continue-bg: #fef3c7;
+  --app-badge-continue-text: #92400e;
+  --app-badge-terminate-bg: #d1fae5;
+  --app-badge-terminate-text: #065f46;
+  --app-badge-juror-bg: #ffedd5;
+  --app-badge-juror-text: #9a3412;
+  --app-badge-latest-bg: #dbeafe;
+  --app-badge-latest-text: #1d4ed8;
+  --app-iteration-latest-border: #93c5fd;
+  --app-iteration-latest-shadow: rgba(31, 119, 180, 0.08);
+  --app-iteration-latest-header: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+}
+
+.dark {
+  --app-primary: #4da3d9;
+  --app-primary-foreground: #ffffff;
+  --app-surface: #0d1117;
+  --app-surface-elevated: #161b22;
+  --app-surface-muted: #1c2128;
+  --app-surface-hover: #21262d;
+  --app-border: #30363d;
+  --app-border-subtle: #282e36;
+  --app-border-input: #3d444d;
+  --app-muted: #8b949e;
+  --app-muted-text: #9ca3af;
+  --app-foreground: #e6edf3;
+  --app-foreground-secondary: #c9d1d9;
+  --app-foreground-subtle: #8b949e;
+  --app-foreground-faint: #6e7681;
+  --app-progress-track: #21262d;
+  --app-code-bg: #0d1117;
+  --app-code-text: #c9d1d9;
+  --app-param-bg: #1c2a3a;
+  --app-param-border: #2d4a66;
+  --app-param-key: #7ba3c4;
+  --app-param-value: #a8cce8;
+  --app-label: #8b949e;
+  --app-status-info-bg: #132f4c;
+  --app-status-info-text: #7dd3fc;
+  --app-status-success-bg: #132a1a;
+  --app-status-success-text: #86efac;
+  --app-status-warning-bg: #2a2010;
+  --app-status-warning-text: #fcd34d;
+  --app-status-error-bg: #2a1414;
+  --app-status-error-text: #fca5a5;
+  --app-badge-strategy-bg: #2e1065;
+  --app-badge-strategy-text: #c4b5fd;
+  --app-badge-continue-bg: #422006;
+  --app-badge-continue-text: #fcd34d;
+  --app-badge-terminate-bg: #064e3b;
+  --app-badge-terminate-text: #6ee7b7;
+  --app-badge-juror-bg: #431407;
+  --app-badge-juror-text: #fdba74;
+  --app-badge-latest-bg: #1e3a5f;
+  --app-badge-latest-text: #93c5fd;
+  --app-iteration-latest-border: #1e4976;
+  --app-iteration-latest-shadow: rgba(77, 163, 217, 0.12);
+  --app-iteration-latest-header: linear-gradient(135deg, #1c2a3a 0%, #161b22 100%);
+}
+
+@theme {
+  --color-primary: var(--app-primary);
+  --color-primary-foreground: var(--app-primary-foreground);
+  --color-surface: var(--app-surface);
+  --color-surface-elevated: var(--app-surface-elevated);
+  --color-surface-muted: var(--app-surface-muted);
+  --color-surface-hover: var(--app-surface-hover);
+  --color-border: var(--app-border);
+  --color-border-subtle: var(--app-border-subtle);
+  --color-border-input: var(--app-border-input);
+  --color-muted: var(--app-muted);
+  --color-muted-text: var(--app-muted-text);
+  --color-foreground: var(--app-foreground);
+  --color-foreground-secondary: var(--app-foreground-secondary);
+  --color-foreground-subtle: var(--app-foreground-subtle);
+  --color-foreground-faint: var(--app-foreground-faint);
+  --color-progress-track: var(--app-progress-track);
+  --color-code-bg: var(--app-code-bg);
+  --color-code-text: var(--app-code-text);
+  --color-param-bg: var(--app-param-bg);
+  --color-param-border: var(--app-param-border);
+  --color-param-key: var(--app-param-key);
+  --color-param-value: var(--app-param-value);
+  --color-label: var(--app-label);
+  --font-sans: Inter, "Segoe UI", system-ui, sans-serif;
+  --font-mono: Consolas, Monaco, ui-monospace, monospace;
+}
+
+@layer base {
+  body {
+    @apply m-0 bg-surface text-foreground font-sans leading-normal antialiased;
+  }
+
+  a {
+    @apply text-inherit no-underline;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--app-primary) 25%, transparent);
+  }
+}

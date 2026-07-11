@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { streamUrl } from '../api/client'
 import { jobsApi } from '../api/endpoints'
 import { subscribeJobStream } from '../api/sse'
@@ -36,7 +36,8 @@ export function useJobStream({ module, jobId, enabled = true }: UseJobStreamOpti
   const [error, setError] = useState<string | null>(null)
   const [humanInput, setHumanInput] = useState<Record<string, unknown> | null>(null)
   const [isDone, setIsDone] = useState(false)
-  const logsRef = useRef<Array<Record<string, unknown>>>([])
+  const [isCancelled, setIsCancelled] = useState(false)
+  const [logs, setLogs] = useState<Array<Record<string, unknown>>>([])
 
   useEffect(() => {
     if (!jobId || !enabled) return
@@ -47,8 +48,9 @@ export function useJobStream({ module, jobId, enabled = true }: UseJobStreamOpti
     setError(null)
     setHumanInput(null)
     setIsDone(false)
+    setIsCancelled(false)
     setIsRunning(true)
-    logsRef.current = []
+    setLogs([])
 
     const unsubscribe = subscribeJobStream(streamUrl(module, jobId), {
       onEvent: (event) => {
@@ -61,7 +63,7 @@ export function useJobStream({ module, jobId, enabled = true }: UseJobStreamOpti
         if (event.type === 'stream') {
           const content = event.content as Record<string, unknown> | undefined
           if (content?.log_history) {
-            logsRef.current = [...logsRef.current, content]
+            setLogs((prev) => [...prev, content])
           }
           if (typeof content?.progress === 'number') {
             setProgress(normalizeProgress(content.progress as number))
@@ -90,6 +92,9 @@ export function useJobStream({ module, jobId, enabled = true }: UseJobStreamOpti
         setProgress(1)
         if (event.status === 'failed') {
           setError(event.error ?? 'Job failed')
+        } else if (event.status === 'cancelled') {
+          setIsCancelled(true)
+          setStatusText('Design cancelled')
         }
       },
       onError: async (err) => {
@@ -114,6 +119,14 @@ export function useJobStream({ module, jobId, enabled = true }: UseJobStreamOpti
             setError(status.error ?? err.message)
             return
           }
+          if (status.status === 'cancelled') {
+            setIsRunning(false)
+            setIsDone(true)
+            setIsCancelled(true)
+            setStatusText('Design cancelled')
+            setError(null)
+            return
+          }
           // Stream dropped but the backend job is still running; polling can continue.
           setError(null)
           return
@@ -129,11 +142,12 @@ export function useJobStream({ module, jobId, enabled = true }: UseJobStreamOpti
 
   return {
     events,
-    logs: logsRef.current,
+    logs,
     progress,
     statusText,
     isRunning,
     isDone,
+    isCancelled,
     error,
     humanInput,
     clearHumanInput: () => setHumanInput(null),

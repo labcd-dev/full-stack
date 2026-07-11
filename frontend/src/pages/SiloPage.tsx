@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { healthApi, siloApi } from '../api/endpoints'
+import { healthApi, jobsApi, siloApi } from '../api/endpoints'
 import { ActivityLog } from '../components/ActivityLog'
 import { DesignIterationReport } from '../components/DesignIterationReport'
 import { DesignMonitorDashboard } from '../components/DesignMonitorDashboard'
@@ -15,6 +15,7 @@ import { usePoll } from '../hooks/usePoll'
 import {
   btnLink,
   btnPrimary,
+  btnBase,
   btnWide,
   cardPanel,
   fieldCheckbox,
@@ -34,7 +35,8 @@ export function SiloPage() {
   const [loading, setLoading] = useState(false)
   const [started, setStarted] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
-  const [gaEnabled, setGaEnabled] = useState(true)
+  const [gaEnabled, setGaEnabled] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
 
   const jobId = pipeline.siloJobId
   const stream = useJobStream({ module: 'silo', jobId, enabled: started })
@@ -44,7 +46,7 @@ export function SiloPage() {
     return siloApi.monitor(jobId)
   }, [jobId])
 
-  const poll = usePoll(fetchMonitor, 2000, started)
+  const poll = usePoll(fetchMonitor, 3000, started)
 
   useEffect(() => {
     healthApi.models().then((res) => setModels(res.llm_models)).catch(() => {})
@@ -82,6 +84,19 @@ export function SiloPage() {
     }
   }
 
+  const cancelDesign = async () => {
+    if (!jobId || cancelling) return
+    setCancelling(true)
+    setError(null)
+    try {
+      await jobsApi.cancel(jobId)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to cancel design')
+    } finally {
+      setCancelling(false)
+    }
+  }
+
   const monitorState = useMonitorState(
     poll.data as Record<string, unknown> | null | undefined,
     stream.events,
@@ -105,14 +120,33 @@ export function SiloPage() {
       content: (
         <>
           {started && (
-            <ProgressBar
-              value={latestProgress}
-              label={
-                stream.isDone
-                  ? 'Design complete'
-                  : latestMessage || stream.statusText || 'Running single-loop design...'
-              }
-            />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-4">
+              <div className="flex-1 [&>div]:my-0">
+                <ProgressBar
+                  value={latestProgress}
+                  label={
+                    stream.isCancelled
+                      ? 'Design cancelled'
+                      : stream.isDone
+                        ? 'Design complete'
+                        : latestMessage || stream.statusText || 'Running single-loop design...'
+                  }
+                />
+              </div>
+              {stream.isRunning && !stream.isDone && (
+                <button
+                  type="button"
+                  className={`${btnBase} shrink-0 border-[color-mix(in_srgb,var(--app-status-error-text)_35%,transparent)] text-[var(--app-status-error-text)] hover:bg-[var(--app-status-error-bg)]`}
+                  disabled={cancelling}
+                  onClick={() => void cancelDesign()}
+                >
+                  {cancelling ? 'Cancelling...' : 'Cancel Design'}
+                </button>
+              )}
+            </div>
+          )}
+          {stream.isCancelled && (
+            <StatusMessage type="warning" message="Control design was cancelled. Partial results may still be available below." />
           )}
           {stream.error && <StatusMessage type="error" message={stream.error} />}
           {started && monitorState && (

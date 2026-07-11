@@ -1,12 +1,71 @@
+import copy
 import json
 from datetime import datetime
-from typing import Dict
+from typing import Any, Dict, Optional
 from langchain_cerebras import ChatCerebras
 import os
 
 from backend_core.SiloDesigner.src.controllers import run_optimization, initialize_state, create_optimization_graph
 from backend_core.SiloDesigner.src.utils import log_to_file
 from backend_core.SiloDesigner.classic.ga_utils import GAOptimizer
+
+MONITOR_STATE_KEYS = (
+    'iteration',
+    'max_iterations',
+    'scenario_level',
+    'max_scenarios',
+    'controller_type',
+    'controllers_list',
+    'current_controller_index',
+    'system_description',
+    'dt',
+    'max_time',
+    'target',
+    'current_params',
+    'results',
+)
+MAX_MONITOR_HISTORY = 100
+
+
+def _array_to_list(value: Any) -> list:
+    if value is None:
+        return []
+    if hasattr(value, 'tolist'):
+        return value.tolist()
+    if isinstance(value, list):
+        return value
+    return []
+
+
+def _lightweight_results_snapshot(results: Any) -> Optional[Dict[str, Any]]:
+    if not isinstance(results, dict):
+        return None
+
+    return {
+        'success': results.get('success'),
+        'metrics': copy.deepcopy(results.get('metrics', {})),
+        'trajectory': _array_to_list(results.get('trajectory')),
+        'control_signals': _array_to_list(results.get('control_signals')),
+        'errors': _array_to_list(results.get('errors')),
+    }
+
+
+def lightweight_monitor_snapshot(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Store only UI-relevant fields; avoid copying system/simulator/buffer objects."""
+    snapshot: Dict[str, Any] = {}
+    for key in MONITOR_STATE_KEYS:
+        if key not in state:
+            continue
+        if key == 'results':
+            results = _lightweight_results_snapshot(state.get('results'))
+            if results is not None:
+                snapshot['results'] = results
+            continue
+        if key == 'current_params' and isinstance(state.get('current_params'), dict):
+            snapshot['current_params'] = copy.deepcopy(state['current_params'])
+            continue
+        snapshot[key] = state[key]
+    return snapshot
 
 #Configure Streamlit page
 
@@ -61,7 +120,11 @@ class DesignMonitor:
         self.llm_responses = []
         self.current_state = {}
         self.is_running = False
-        self.scenario_metrics_history = []  # NEW: Track per-scenario computational metrics
+        self.scenario_metrics_history = []
+        self.revision = 0
+
+    def _bump_revision(self) -> None:
+        self.revision += 1
 
     def add_progress(self, message: str, data: Dict = None):
         """Add progress update to history list"""
@@ -80,15 +143,26 @@ class DesignMonitor:
             'prompt': prompt[:200] + "..." if len(prompt) > 200 else prompt,
             'response': response
         })
+        self._bump_revision()
 
     def update_state(self, update: Dict):
         """Update current state"""
         self.current_state.update(update)
+
         if 'iteration' in update:
             self.state_history.append({
                 'timestamp': datetime.now().strftime("%H:%M:%S"),
-                'state': self.current_state.copy()
+                'state': lightweight_monitor_snapshot(self.current_state),
             })
+            if len(self.state_history) > MAX_MONITOR_HISTORY:
+                self.state_history = self.state_history[-MAX_MONITOR_HISTORY:]
+            self._bump_revision()
+        elif (
+            'results' in update
+            and isinstance(update.get('results'), dict)
+            and update['results'].get('success')
+        ):
+            self._bump_revision()
 
     def add_scenario_metrics(self, scenario_level: int, metrics: Dict):
         """NEW: Add per-scenario computational metrics to history"""
@@ -120,20 +194,20 @@ def get_serializable_monitor_state(monitor):
         elif isinstance(obj, (str, int, float, bool, type(None))):
             return obj
         else:
-            # Convert non-serializable objects to string representation
             return repr(obj)
 
     return {
+        'revision': monitor.revision,
         'state_history': [
             {
                 'timestamp': entry['timestamp'],
                 'state': to_serializable(entry['state'])
             } for entry in monitor.state_history
         ],
-        'llm_responses': monitor.llm_responses,  # Already serializable
-        'current_state': to_serializable(monitor.current_state),
-        'progress_history': monitor.progress_history,  # Already serializable
-        'scenario_metrics_history': [  # NEW: Serialize per-scenario metrics
+        'llm_responses': monitor.llm_responses,
+        'current_state': to_serializable(lightweight_monitor_snapshot(monitor.current_state)),
+        'progress_history': monitor.progress_history,
+        'scenario_metrics_history': [
             {
                 'scenario_level': entry['scenario_level'],
                 'timestamp': entry['timestamp'],

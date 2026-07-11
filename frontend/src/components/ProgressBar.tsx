@@ -7,25 +7,41 @@ interface ProgressBarProps {
 
 export function ProgressBar({ value, label }: ProgressBarProps) {
   const pct = Math.min(100, Math.max(0, Math.round(value * 100)))
+  const isComplete = pct >= 100
+  const isActive = pct > 0 && !isComplete
 
   return (
     <div className="my-4">
-      {label && (
-        <p className="m-0 mb-2 text-sm font-medium text-foreground">
-          <StatusLabel text={label} />
-        </p>
-      )}
-      <div className="h-2 bg-progress-track rounded-full overflow-hidden">
+      <div className="mb-2.5 flex items-center gap-3">
+        {label && (
+          <p className="m-0 min-w-0 flex-1 text-sm font-medium text-foreground">
+            <StatusLabel text={label} />
+          </p>
+        )}
+        <span
+          className={`shrink-0 text-xs font-semibold tabular-nums text-foreground-secondary ${label ? '' : 'ml-auto'}`}
+        >
+          {pct}%
+        </span>
+      </div>
+      <div
+        className="progress-bar-track h-4 overflow-hidden rounded-full bg-progress-track"
+        role="progressbar"
+        aria-valuenow={pct}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      >
         <div
-          className="h-full bg-primary rounded-full transition-[width] duration-300 ease-out"
+          className={[
+            'progress-bar-fill h-full rounded-full',
+            isActive && 'progress-bar-fill--active',
+            isComplete && 'progress-bar-fill--complete',
+          ]
+            .filter(Boolean)
+            .join(' ')}
           style={{ width: `${pct}%` }}
-          role="progressbar"
-          aria-valuenow={pct}
-          aria-valuemin={0}
-          aria-valuemax={100}
         />
       </div>
-      <span className="text-xs text-muted mt-1 inline-block tabular-nums">{pct}%</span>
     </div>
   )
 }

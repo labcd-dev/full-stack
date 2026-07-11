@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 
 from backend_api.http.config import RESULTS_DIR
 from backend_api.http.schemas.common import ArtifactResponse, JobStatusResponse
-from backend_api.http.services.job_store import job_store
+from backend_api.http.services.job_store import JobStatus, job_store
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -18,11 +18,26 @@ def get_job_status(job_id: str) -> JobStatusResponse:
         job = job_store.get(job_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Job not found") from exc
+    return _job_status_response(job)
+
+
+@router.post("/{job_id}/cancel", response_model=JobStatusResponse)
+def cancel_job(job_id: str) -> JobStatusResponse:
+    try:
+        job = job_store.request_cancel(job_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Job not found") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _job_status_response(job)
+
+
+def _job_status_response(job) -> JobStatusResponse:
     return JobStatusResponse(
         job_id=job.id,
         module=job.module,
         status=job.status.value,
-        metadata=job.metadata,
+        metadata=job_store.public_metadata(job),
         error=job.error,
     )
 

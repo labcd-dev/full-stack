@@ -49,14 +49,14 @@ def stream_job_events(job_id: str, poll_interval: float = 0.1) -> Generator[str,
             last_activity = time.monotonic()
 
         job = job_store.get(job_id)
-        if job.status in {JobStatus.COMPLETED, JobStatus.FAILED}:
+        if job.status in {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED}:
             yield format_sse(
                 "done",
                 {
                     "job_id": job_id,
                     "status": job.status.value,
                     "error": job.error,
-                    "metadata": job.metadata,
+                    "metadata": job_store.public_metadata(job),
                 },
             )
             break

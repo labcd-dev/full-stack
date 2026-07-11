@@ -1,12 +1,71 @@
+import copy
 import json
 from datetime import datetime
-from typing import Dict
+from typing import Any, Dict, Optional
 from langchain_cerebras import ChatCerebras
 import os
 
 from backend_api.SiloDesigner.src.controllers import run_optimization, initialize_state, create_optimization_graph
 from backend_api.SiloDesigner.src.utils import log_to_file
 from backend_api.SiloDesigner.classic.ga_utils import GAOptimizer
+
+MONITOR_STATE_KEYS = (
+    'iteration',
+    'max_iterations',
+    'scenario_level',
+    'max_scenarios',
+    'controller_type',
+    'controllers_list',
+    'current_controller_index',
+    'system_description',
+    'dt',
+    'max_time',
+    'target',
+    'current_params',
+    'results',
+)
+MAX_MONITOR_HISTORY = 100
+
+
+def _array_to_list(value: Any) -> list:
+    if value is None:
+        return []
+    if hasattr(value, 'tolist'):
+        return value.tolist()
+    if isinstance(value, list):
+        return value
+    return []
+
+
+def _lightweight_results_snapshot(results: Any) -> Optional[Dict[str, Any]]:
+    if not isinstance(results, dict):
+        return None
+
+    return {
+        'success': results.get('success'),
+        'metrics': copy.deepcopy(results.get('metrics', {})),
+        'trajectory': _array_to_list(results.get('trajectory')),
+        'control_signals': _array_to_list(results.get('control_signals')),
+        'errors': _array_to_list(results.get('errors')),
+    }
+
+
+def lightweight_monitor_snapshot(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Store only UI-relevant fields; avoid copying system/simulator/buffer objects."""
+    snapshot: Dict[str, Any] = {}
+    for key in MONITOR_STATE_KEYS:
+        if key not in state:
+            continue
+        if key == 'results':
+            results = _lightweight_results_snapshot(state.get('results'))
+            if results is not None:
+                snapshot['results'] = results
+            continue
+        if key == 'current_params' and isinstance(state.get('current_params'), dict):
+            snapshot['current_params'] = copy.deepcopy(state['current_params'])
+            continue
+        snapshot[key] = state[key]
+    return snapshot
 
 #Configure Streamlit page
 
@@ -52,6 +111,10 @@ class DummyMonitor:
         pass
 
 
+class DesignCancelledError(Exception):
+    """Raised when the user cancels an in-progress control design."""
+
+
 class DesignMonitor:
     """Monitor class to capture real-time design progress"""
 
@@ -61,7 +124,11 @@ class DesignMonitor:
         self.llm_responses = []
         self.current_state = {}
         self.is_running = False
-        self.scenario_metrics_history = []  # NEW: Track per-scenario computational metrics
+        self.scenario_metrics_history = []
+        self.revision = 0
+
+    def _bump_revision(self) -> None:
+        self.revision += 1
 
     def add_progress(self, message: str, data: Dict = None):
         """Add progress update to history list"""
@@ -80,15 +147,27 @@ class DesignMonitor:
             'prompt': prompt[:200] + "..." if len(prompt) > 200 else prompt,
             'response': response
         })
+        self._bump_revision()
 
     def update_state(self, update: Dict):
         """Update current state"""
         self.current_state.update(update)
+
         if 'iteration' in update:
             self.state_history.append({
                 'timestamp': datetime.now().strftime("%H:%M:%S"),
-                'state': self.current_state.copy()
+                'state': lightweight_monitor_snapshot(self.current_state),
             })
+            if len(self.state_history) > MAX_MONITOR_HISTORY:
+                self.state_history = self.state_history[-MAX_MONITOR_HISTORY:]
+            self._bump_revision()
+        elif (
+            'results' in update
+            and isinstance(update.get('results'), dict)
+            and update['results'].get('success')
+        ):
+            # Notify subscribers of fresh simulation data without duplicating history.
+            self._bump_revision()
 
     def add_scenario_metrics(self, scenario_level: int, metrics: Dict):
         """NEW: Add per-scenario computational metrics to history"""
@@ -120,20 +199,20 @@ def get_serializable_monitor_state(monitor):
         elif isinstance(obj, (str, int, float, bool, type(None))):
             return obj
         else:
-            # Convert non-serializable objects to string representation
             return repr(obj)
 
     return {
+        'revision': monitor.revision,
         'state_history': [
             {
                 'timestamp': entry['timestamp'],
                 'state': to_serializable(entry['state'])
             } for entry in monitor.state_history
         ],
-        'llm_responses': monitor.llm_responses,  # Already serializable
-        'current_state': to_serializable(monitor.current_state),
-        'progress_history': monitor.progress_history,  # Already serializable
-        'scenario_metrics_history': [  # NEW: Serialize per-scenario metrics
+        'llm_responses': monitor.llm_responses,
+        'current_state': to_serializable(lightweight_monitor_snapshot(monitor.current_state)),
+        'progress_history': monitor.progress_history,
+        'scenario_metrics_history': [
             {
                 'scenario_level': entry['scenario_level'],
                 'timestamp': entry['timestamp'],
@@ -146,95 +225,95 @@ def get_serializable_monitor_state(monitor):
 def run_design_with_monitoring(config: Dict, monitor: DesignMonitor):
     """Run the design process with real-time monitoring"""
     monitor.is_running = True
-    monitor.add_progress("ðŸš€ Starting Control System Design Process...")
+    monitor.add_progress("Starting Control System Design Process...")
 
-    # try:
-        # Create modified versions of the functions to include monitoring
-    original_run_optimization = run_optimization
+    try:
+        def monitored_run_optimization(**kwargs):
+            monitor.add_progress(f"Initializing design with system: {kwargs.get('system_name', 'unknown')}")
 
-    def monitored_run_optimization(**kwargs):
-        monitor.add_progress(f"ðŸ“‹ Initializing design with system: {kwargs.get('system_name', 'unknown')}")
+            # Create graph and initial state
+            graph, graph_config = create_optimization_graph(
+                kwargs.get('max_scenarios', 3),
+                kwargs.get('max_iter', 10)
+            )
 
-        # Create graph and initial state
-        graph, graph_config = create_optimization_graph(
-            kwargs.get('max_scenarios', 3),
-            kwargs.get('max_iter', 10)
-        )
+            # NEW: Filter out GA-specific keys before passing to initialize_state
+            ga_keys = {'enable_ga', 'ga_config'}
+            filtered_kwargs = {k: v for k, v in kwargs.items() if k not in ga_keys}
 
-        # NEW: Filter out GA-specific keys before passing to initialize_state
-        ga_keys = {'enable_ga', 'ga_config'}
-        filtered_kwargs = {k: v for k, v in kwargs.items() if k not in ga_keys}
+            init_kwargs = {
+                **filtered_kwargs,
+                'dt': filtered_kwargs.get('dt', 0.01),
+                'max_time': filtered_kwargs.get('max_time', 5.0),
+                'target': filtered_kwargs.get('target', 0.0),
+                'num_inputs': filtered_kwargs.get('num_inputs', 1),
+                'input_channel': filtered_kwargs.get('input_channel', 0),
+                'output_channel': filtered_kwargs.get('output_channel', 0),
+                # NEW: Pass trim_values, num_states, matlab_func_name, min_ctrl, max_ctrl
+                'trim_values': filtered_kwargs.get('trim_values'),
+                'num_states': filtered_kwargs.get('num_states'),
+                'matlab_func_name': filtered_kwargs.get('matlab_func_name'),
+                'min_ctrl': filtered_kwargs.get('min_ctrl', -10.0),
+                'max_ctrl': filtered_kwargs.get('max_ctrl', 10.0),
+                'monitor': monitor
+            }
 
-        init_kwargs = {
-            **filtered_kwargs,
-            'dt': filtered_kwargs.get('dt', 0.01),
-            'max_time': filtered_kwargs.get('max_time', 5.0),
-            'target': filtered_kwargs.get('target', 0.0),
-            'num_inputs': filtered_kwargs.get('num_inputs', 1),
-            'input_channel': filtered_kwargs.get('input_channel', 0),
-            'output_channel': filtered_kwargs.get('output_channel', 0),
-            # NEW: Pass trim_values, num_states, matlab_func_name, min_ctrl, max_ctrl
-            'trim_values': filtered_kwargs.get('trim_values'),
-            'num_states': filtered_kwargs.get('num_states'),
-            'matlab_func_name': filtered_kwargs.get('matlab_func_name'),
-            'min_ctrl': filtered_kwargs.get('min_ctrl', -10.0),
-            'max_ctrl': filtered_kwargs.get('max_ctrl', 10.0),
-            'monitor': monitor
-        }
+            initial_state = initialize_state(**init_kwargs)
+            monitor.current_state = initial_state.copy()
 
-        initial_state = initialize_state(**init_kwargs)
-        monitor.current_state = initial_state.copy()
+            log_to_file(f"=== CONTROL DESIGN LOG - {datetime.now()} ===\n\n", True)
 
-        log_to_file(f"=== CONTROL DESIGN LOG - {datetime.now()} ===\n\n", True)
+            # Stream the graph execution with monitoring
+            step_count = 0
+            for step_output in graph.stream(initial_state, config={"recursion_limit": 1000}):
+                if not monitor.is_running:
+                    monitor.add_progress("Design cancelled by user")
+                    raise DesignCancelledError("Design cancelled by user")
 
-        # Stream the graph execution with monitoring
-        step_count = 0
-        for step_output in graph.stream(initial_state, config={"recursion_limit": 1000}):
-            step_count += 1
+                step_count += 1
 
-            # Extract state information from step output
-            if step_output:
-                for node_name, node_output in step_output.items():
-                    monitor.add_progress(f"âš™ï¸ Executing: {node_name}")
+                # Extract state information from step output
+                if step_output:
+                    for node_name, node_output in step_output.items():
+                        monitor.add_progress(f"Executing: {node_name}")
 
-                    # Update state with node output
-                    if isinstance(node_output, dict):
-                        monitor.update_state(node_output)
+                        # Update state with node output
+                        if isinstance(node_output, dict):
+                            monitor.update_state(node_output)
 
-                        # Special handling for different node types
-                        if node_name == "propose_parameters" and "current_params" in node_output:
-                            params = node_output["current_params"]
-                            monitor.add_progress(f"ðŸŽ¯ Proposed Parameters: {params}")
+                            # Special handling for different node types
+                            if node_name == "propose_parameters" and "current_params" in node_output:
+                                params = node_output["current_params"]
+                                monitor.add_progress(f"Proposed Parameters: {params}")
 
-                        elif node_name == "run_simulation" and "results" in node_output:
-                            results = node_output["results"]
-                            if results and results.get("success"):
-                                metrics = results.get("metrics", {})
-                                monitor.add_progress(
-                                    f"ðŸ“Š Simulation Results - MSE: {metrics.get('mse', 'N/A'):.4f}, "
-                                    f"Settling Time: {metrics.get('settling_time', 'N/A'):.2f}s")
+                            elif node_name == "run_simulation" and "results" in node_output:
+                                results = node_output["results"]
+                                if results and results.get("success"):
+                                    metrics = results.get("metrics", {})
+                                    monitor.add_progress(
+                                        f"Simulation Results - MSE: {metrics.get('mse', 'N/A'):.4f}, "
+                                        f"Settling Time: {metrics.get('settling_time', 'N/A'):.2f}s")
 
-                        elif node_name == "evaluate_performance" and "feedback" in node_output:
-                            feedback = node_output["feedback"]
-                            try:
-                                feedback_data = json.loads(feedback) if isinstance(feedback, str) else feedback
-                                monitor.add_progress(f"ðŸ” Performance Analysis Complete")
-                            except:
-                                monitor.add_progress(f"ðŸ” Performance Analysis: {str(feedback)[:100]}...")
+                            elif node_name == "evaluate_performance" and "feedback" in node_output:
+                                feedback = node_output["feedback"]
+                                try:
+                                    feedback_data = json.loads(feedback) if isinstance(feedback, str) else feedback
+                                    monitor.add_progress("Performance Analysis Complete")
+                                except:
+                                    monitor.add_progress(f"Performance Analysis: {str(feedback)[:100]}...")
 
-                    if step_count > 1000:  # Safety break
-                        break
+                        if step_count > 1000:  # Safety break
+                            break
 
-        monitor.add_progress("âœ… Design process completed!")
+            if not monitor.is_running:
+                monitor.add_progress("Design cancelled by user")
+                raise DesignCancelledError("Design cancelled by user")
 
-    # Run the monitored optimization
-    monitored_run_optimization(**config)
+            monitor.add_progress("Design process completed!")
 
-    # except Exception as e:
-    #     monitor.add_progress(f"âŒ Error during design: {str(e)}")
-    #     # st.error(f"Design process failed: {str(e)}")
-    # finally:
-    #     monitor.is_running = False
+        monitored_run_optimization(**config)
+    finally:
+        monitor.is_running = False
 
 
 def run_ga_optimization(config, ga_results_container):

@@ -10,6 +10,19 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, Optional
 
+from backend_api.common.serialization import make_serializable
+
+INTERNAL_METADATA_KEYS = frozenset(
+    {
+        "monitor",
+        "config",
+        "graph",
+        "initial_state",
+        "graph_config",
+        "designer",
+    }
+)
+
 
 class JobStatus(str, Enum):
     PENDING = "pending"
@@ -17,6 +30,7 @@ class JobStatus(str, Enum):
     WAITING_INPUT = "waiting_input"
     COMPLETED = "completed"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 @dataclass
@@ -29,6 +43,7 @@ class Job:
     event_queue: queue.Queue = field(default_factory=queue.Queue)
     metadata: Dict[str, Any] = field(default_factory=dict)
     error: Optional[str] = None
+    cancel_requested: bool = False
     thread: Optional[threading.Thread] = field(default=None, repr=False)
 
     def touch(self, status: Optional[JobStatus] = None) -> None:
@@ -59,6 +74,24 @@ class JobStore:
     def update_metadata(self, job_id: str, updates: Dict[str, Any]) -> Job:
         job = self.get(job_id)
         job.metadata.update(updates)
+        job.touch()
+        return job
+
+    def public_metadata(self, job: Job) -> Dict[str, Any]:
+        """Return API-safe metadata without internal runtime objects."""
+        return make_serializable(
+            {key: value for key, value in job.metadata.items() if key not in INTERNAL_METADATA_KEYS}
+        )
+
+    def request_cancel(self, job_id: str) -> Job:
+        job = self.get(job_id)
+        if job.status in {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED}:
+            raise ValueError(f"Job {job_id} cannot be cancelled (status: {job.status.value})")
+        job.cancel_requested = True
+        if job.module == "silo":
+            monitor = job.metadata.get("monitor")
+            if monitor is not None:
+                monitor.is_running = False
         job.touch()
         return job
 

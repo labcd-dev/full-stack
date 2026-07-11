@@ -133,6 +133,8 @@ export const muloApi = {
 
 export const jobsApi = {
   status: (jobId: string) => apiFetch<JobStatusResponse>(`/jobs/${jobId}`),
+  cancel: (jobId: string) =>
+    apiFetch<JobStatusResponse>(`/jobs/${jobId}/cancel`, { method: 'POST' }),
   results: (jobId: string) => apiFetch<ArtifactResponse>(`/jobs/${jobId}/results`),
   downloadArtifact: artifactUrl,
 }

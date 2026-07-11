@@ -4,7 +4,6 @@ import { ActivityLog } from '../components/ActivityLog'
 import { DesignIterationReport } from '../components/DesignIterationReport'
 import { DesignMonitorDashboard } from '../components/DesignMonitorDashboard'
 import { CodePreview } from '../components/CodePreview'
-import { JsonViewer } from '../components/JsonViewer'
 import { ModelSelect } from '../components/ModelSelect'
 import { ProgressBar } from '../components/ProgressBar'
 import { StatusMessage } from '../components/StatusMessage'
@@ -29,7 +28,7 @@ export function SiloPage() {
   const pipeline = usePipeline()
   const [models, setModels] = useState<string[]>(['gpt-4o'])
   const [objective, setObjective] = useState('')
-  const [activeTab, setActiveTab] = useState('monitor')
+  const [activeTab, setActiveTab] = useState('state')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [started, setStarted] = useState(false)
@@ -97,8 +96,8 @@ export function SiloPage() {
 
   const tabs = [
     {
-      id: 'monitor',
-      label: 'Design Monitor',
+      id: 'state',
+      label: 'Monitor State',
       content: (
         <>
           {started && (
@@ -118,28 +117,29 @@ export function SiloPage() {
               currentState={currentState}
             />
           )}
-          {llmResponses.length > 0 && (
-            <DesignIterationReport responses={llmResponses} />
-          )}
           {!started && (
             <p className={mutedText}>Start a design to see live monitor data from the API.</p>
+          )}
+          {started && stateHistory.length === 0 && (
+            <p className={mutedText}>Waiting for simulation data...</p>
           )}
         </>
       ),
     },
     {
+      id: 'process',
+      label: 'Design Process',
+      content:
+        llmResponses.length > 0 ? (
+          <DesignIterationReport responses={llmResponses} />
+        ) : (
+          <p className={mutedText}>No optimization iterations yet.</p>
+        ),
+    },
+    {
       id: 'logs',
       label: 'Activity Log',
       content: <ActivityLog logs={stream.logs} />,
-    },
-    {
-      id: 'state',
-      label: 'Monitor State',
-      content: monitorState ? (
-        <JsonViewer data={monitorState} />
-      ) : (
-        <p className={mutedText}>No monitor state yet.</p>
-      ),
     },
   ]
 

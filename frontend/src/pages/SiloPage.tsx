@@ -5,6 +5,7 @@ import { DesignIterationReport } from '../components/DesignIterationReport'
 import { DesignMonitorDashboard } from '../components/DesignMonitorDashboard'
 import { CodePreview } from '../components/CodePreview'
 import { ModelSelect } from '../components/ModelSelect'
+import { SiloAdvancedSettings } from '../components/SiloAdvancedSettings'
 import { ProgressBar } from '../components/ProgressBar'
 import { StatusMessage } from '../components/StatusMessage'
 import { Tabs } from '../components/Tabs'
@@ -17,14 +18,17 @@ import {
   btnPrimary,
   btnBase,
   btnWide,
-  cardPanel,
-  fieldCheckbox,
   fieldInput,
   fieldLabel,
   mutedText,
   pageIntro,
   pageSection,
 } from '../lib/classes'
+import {
+  buildSiloStartConfig,
+  DEFAULT_SILO_ADVANCED_CONFIG,
+  type SiloAdvancedConfig,
+} from '../lib/siloDesignConfig'
 
 export function SiloPage() {
   const pipeline = usePipeline()
@@ -35,7 +39,9 @@ export function SiloPage() {
   const [loading, setLoading] = useState(false)
   const [started, setStarted] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
-  const [gaEnabled, setGaEnabled] = useState(false)
+  const [advancedConfig, setAdvancedConfig] = useState<SiloAdvancedConfig>(
+    DEFAULT_SILO_ADVANCED_CONFIG,
+  )
   const [cancelling, setCancelling] = useState(false)
 
   const jobId = pipeline.siloJobId
@@ -61,15 +67,11 @@ export function SiloPage() {
     setLoading(true)
     setError(null)
     try {
-      const config: Record<string, unknown> = {
+      const config = buildSiloStartConfig(advancedConfig, {
         llm_model: pipeline.model,
         file_content: pipeline.fileContent,
         file_type: pipeline.fileType === 'matlab' ? 'MATLAB/Octave (.m)' : 'Python (.py)',
-        enable_ga: gaEnabled,
-        dt: 0.01,
-        max_time: 5.0,
-        target: 0.0,
-      }
+      })
 
       const job = await siloApi.start({
         config,
@@ -210,15 +212,8 @@ export function SiloPage() {
           </button>
 
           {showAdvanced && (
-            <div className={`${cardPanel} mt-4`}>
-              <label className={fieldCheckbox}>
-                <input
-                  type="checkbox"
-                  checked={gaEnabled}
-                  onChange={(e) => setGaEnabled(e.target.checked)}
-                />
-                Enable GA Optimization
-              </label>
+            <div className="mt-4">
+              <SiloAdvancedSettings value={advancedConfig} onChange={setAdvancedConfig} />
             </div>
           )}
 

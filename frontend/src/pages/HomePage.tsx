@@ -1,20 +1,32 @@
 import { useEffect, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import {
+  ArrowRight,
+  CheckCircle2,
+  Cpu,
+  Pencil,
+  Play,
+  Save,
+  Settings2,
+  Sparkles,
+  X,
+} from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { healthApi, regularizerApi, uploadApi } from '../api/endpoints'
 import { CodePreview } from '../components/CodePreview'
 import { FileUpload } from '../components/FileUpload'
 import { ModelSelect } from '../components/ModelSelect'
+import { PipelineSelector } from '../components/PipelineSelector'
+import { ProcessingCard } from '../components/ProcessingCard'
+import { SetupStepIndicator } from '../components/SetupStepIndicator'
 import { StatusMessage } from '../components/StatusMessage'
 import { usePipeline } from '../context/PipelineContext'
 import {
   btnBase,
   btnPrimary,
   btnWide,
-  cardProcessing,
+  cardPanel,
   pageIntro,
   pageSection,
-  pageTitle,
 } from '../lib/classes'
 
 type Stage = 'upload' | 'processing' | 'result' | 'standardizing' | 'ready'
@@ -110,148 +122,177 @@ export function HomePage() {
     }
   }
 
+  const nextLabel =
+    pipeline.pipeline === 'muloDesign' ? 'Recommender' : 'Silo Designer'
+
   return (
     <section className={pageSection}>
-      <h2 className={pageTitle}>Control Design Setup</h2>
-      <p className={pageIntro}>
-        Upload a system definition file, choose a pipeline, and start the design process.
-      </p>
+      <header className="setup-hero setup-animate-in">
+        <div className="setup-hero__icon-wrap" aria-hidden>
+          <Settings2 className="setup-hero__icon" />
+        </div>
+        <div className="setup-hero__content">
+          <h2 className="setup-hero__title">Control Design Setup</h2>
+          <p className={`${pageIntro} setup-hero__intro`}>
+            Upload a system definition file, choose a pipeline, and start the design process.
+          </p>
+        </div>
+      </header>
+
+      <SetupStepIndicator stage={stage} />
 
       {error && <StatusMessage type="error" message={error} />}
 
       {stage === 'upload' && (
-        <>
-          <div className="grid grid-cols-[2fr_1fr] gap-4 mb-4 max-md:grid-cols-1">
-            <FileUpload onFileSelect={handleFileSelect} disabled={loading} />
-            <ModelSelect
-              models={models}
-              value={pipeline.model}
-              onChange={pipeline.setModel}
+        <div className="setup-stage setup-animate-in">
+          <div className={`${cardPanel} setup-panel`}>
+            <div className="grid grid-cols-[2fr_1fr] gap-4 max-md:grid-cols-1">
+              <FileUpload onFileSelect={handleFileSelect} disabled={loading} />
+              <ModelSelect
+                models={models}
+                value={pipeline.model}
+                onChange={pipeline.setModel}
+              />
+            </div>
+
+            {pipeline.fileContent && (
+              <StatusMessage
+                type="success"
+                message={`File loaded: ${pipeline.fileName} (${pipeline.fileType})`}
+              />
+            )}
+
+            <PipelineSelector
+              value={pipeline.pipeline}
+              onChange={pipeline.setPipeline}
             />
+
+            {pipeline.pipeline && pipeline.fileContent && (
+              <button
+                type="button"
+                className={`${btnPrimary} ${btnWide} setup-cta`}
+                disabled={loading}
+                onClick={() => void runRegularizer()}
+              >
+                <Play className="size-4" aria-hidden />
+                Start Process
+              </button>
+            )}
           </div>
-
-          {pipeline.fileContent && (
-            <StatusMessage
-              type="success"
-              message={`File loaded: ${pipeline.fileName} (${pipeline.fileType})`}
-            />
-          )}
-
-          <div className="flex gap-3 flex-wrap mt-4">
-            <button
-              type="button"
-              className={pipeline.pipeline === 'siloDesign' ? btnPrimary : btnBase}
-              onClick={() => pipeline.setPipeline('siloDesign')}
-            >
-              Single Loop Control Design
-            </button>
-            <button
-              type="button"
-              className={pipeline.pipeline === 'muloDesign' ? btnPrimary : btnBase}
-              onClick={() => pipeline.setPipeline('muloDesign')}
-            >
-              Multi Loop Control Design
-            </button>
-          </div>
-
-          {pipeline.pipeline && pipeline.fileContent && (
-            <button
-              type="button"
-              className={`${btnPrimary} ${btnWide}`}
-              disabled={loading}
-              onClick={() => void runRegularizer()}
-            >
-              Start Process
-            </button>
-          )}
-        </>
+        </div>
       )}
 
       {stage === 'processing' && (
-        <div className={cardProcessing}>
-          <Loader2 className="size-8 text-primary animate-spin mx-auto mb-3" aria-hidden />
-          <h3 className="text-foreground mt-0">Processing file...</h3>
-          <p className="text-muted-text mb-0">Evaluating syntax and fixing errors via API.</p>
-        </div>
+        <ProcessingCard
+          icon={Cpu}
+          title="Processing file..."
+          description="Evaluating syntax and fixing errors via API."
+        />
       )}
 
       {stage === 'standardizing' && (
-        <div className={cardProcessing}>
-          <Loader2 className="size-8 text-primary animate-spin mx-auto mb-3" aria-hidden />
-          <h3 className="text-foreground mt-0">Standardizing code...</h3>
-          <p className="text-muted-text mb-0">Generating standard format Python file via API.</p>
-        </div>
+        <ProcessingCard
+          icon={Sparkles}
+          title="Standardizing code..."
+          description="Generating standard format Python file via API."
+        />
       )}
 
       {stage === 'result' && pipeline.changeApplied && (
-        <>
-          <h3 className="text-foreground">Code Pre-Processing Result</h3>
-          {pipeline.fileType === 'matlab' && (
-            <StatusMessage type="success" message="MATLAB file converted to Python." />
-          )}
-          {pipeline.changeApplied && !pipeline.humanIntervention && (
-            <StatusMessage type="success" message="Syntax errors auto-repaired." />
-          )}
-          {pipeline.humanIntervention && (
-            <StatusMessage
-              type="warning"
-              message="Automated fixer could not resolve all syntax issues. Review and edit the code."
-            />
-          )}
+        <div className="setup-stage setup-animate-in">
+          <div className={`${cardPanel} setup-panel`}>
+            <h3 className="setup-panel__heading">
+              <Cpu className="size-5 text-primary" aria-hidden />
+              Code Pre-Processing Result
+            </h3>
 
-          {!editMode ? (
-            <>
-              <CodePreview
-                value={pipeline.fileContent}
-                readOnly
-                language={pipeline.fileType === 'matlab' ? 'matlab' : 'python'}
+            {pipeline.fileType === 'matlab' && (
+              <StatusMessage type="success" message="MATLAB file converted to Python." />
+            )}
+            {pipeline.changeApplied && !pipeline.humanIntervention && (
+              <StatusMessage type="success" message="Syntax errors auto-repaired." />
+            )}
+            {pipeline.humanIntervention && (
+              <StatusMessage
+                type="warning"
+                message="Automated fixer could not resolve all syntax issues. Review and edit the code."
               />
-              <div className="flex gap-3 flex-wrap mt-4">
-                <button type="button" className={btnBase} onClick={() => setEditMode(true)}>
-                  Edit Code
-                </button>
-                <button type="button" className={btnPrimary} onClick={() => void runStandardize()}>
-                  Continue
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <CodePreview
-                value={pipeline.fileContent}
-                onChange={pipeline.updateFileContent}
-                language={pipeline.fileType === 'matlab' ? 'matlab' : 'python'}
-              />
-              <div className="flex gap-3 flex-wrap mt-4">
-                <button
-                  type="button"
-                  className={btnPrimary}
-                  onClick={() => setEditMode(false)}
-                >
-                  Save Changes
-                </button>
-                <button type="button" className={btnBase} onClick={() => setEditMode(false)}>
-                  Cancel
-                </button>
-              </div>
-            </>
-          )}
-        </>
+            )}
+
+            {!editMode ? (
+              <>
+                <CodePreview
+                  value={pipeline.fileContent}
+                  readOnly
+                  language={pipeline.fileType === 'matlab' ? 'matlab' : 'python'}
+                />
+                <div className="flex gap-3 flex-wrap mt-4">
+                  <button type="button" className={btnBase} onClick={() => setEditMode(true)}>
+                    <Pencil className="size-4" aria-hidden />
+                    Edit Code
+                  </button>
+                  <button type="button" className={btnPrimary} onClick={() => void runStandardize()}>
+                    <Sparkles className="size-4" aria-hidden />
+                    Continue
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <CodePreview
+                  value={pipeline.fileContent}
+                  onChange={pipeline.updateFileContent}
+                  language={pipeline.fileType === 'matlab' ? 'matlab' : 'python'}
+                />
+                <div className="flex gap-3 flex-wrap mt-4">
+                  <button
+                    type="button"
+                    className={btnPrimary}
+                    onClick={() => setEditMode(false)}
+                  >
+                    <Save className="size-4" aria-hidden />
+                    Save Changes
+                  </button>
+                  <button type="button" className={btnBase} onClick={() => setEditMode(false)}>
+                    <X className="size-4" aria-hidden />
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       )}
 
       {stage === 'ready' && (
-        <>
-          <StatusMessage type="success" message="File is ready for the selected pipeline." />
-          <CodePreview
-            value={pipeline.fileContent}
-            readOnly
-            height={300}
-            language={pipeline.fileType === 'matlab' ? 'matlab' : 'python'}
-          />
-          <button type="button" className={`${btnPrimary} ${btnWide}`} onClick={proceedToPipeline}>
-            Continue to {pipeline.pipeline === 'muloDesign' ? 'Recommender' : 'Silo Designer'}
-          </button>
-        </>
+        <div className="setup-stage setup-animate-in">
+          <div className={`${cardPanel} setup-panel setup-panel--ready`}>
+            <div className="setup-ready-banner" role="status">
+              <CheckCircle2 className="setup-ready-banner__icon" aria-hidden />
+              <div>
+                <p className="setup-ready-banner__title">File is ready</p>
+                <p className="setup-ready-banner__text">
+                  Your system definition is standardized and ready for the selected pipeline.
+                </p>
+              </div>
+            </div>
+
+            <CodePreview
+              value={pipeline.fileContent}
+              readOnly
+              height={300}
+              language={pipeline.fileType === 'matlab' ? 'matlab' : 'python'}
+            />
+            <button
+              type="button"
+              className={`${btnPrimary} ${btnWide} setup-cta`}
+              onClick={proceedToPipeline}
+            >
+              Continue to {nextLabel}
+              <ArrowRight className="size-4" aria-hidden />
+            </button>
+          </div>
+        </div>
       )}
     </section>
   )

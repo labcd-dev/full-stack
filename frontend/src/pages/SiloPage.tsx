@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
+import { OctagonX } from 'lucide-react'
 import { healthApi, jobsApi, siloApi } from '../api/endpoints'
 import { ActivityLog } from '../components/ActivityLog'
 import { DesignIterationReport } from '../components/DesignIterationReport'
 import { DesignMonitorDashboard } from '../components/DesignMonitorDashboard'
 import { CodePreview } from '../components/CodePreview'
 import { ModelSelect } from '../components/ModelSelect'
+import { ProcessingCard } from '../components/ProcessingCard'
 import { SiloAdvancedSettings } from '../components/SiloAdvancedSettings'
 import { ProgressBar } from '../components/ProgressBar'
 import { StatusMessage } from '../components/StatusMessage'
@@ -58,6 +60,13 @@ export function SiloPage() {
     healthApi.models().then((res) => setModels(res.llm_models)).catch(() => {})
   }, [])
 
+  useEffect(() => {
+    if (!cancelling) return
+    if (stream.isCancelled || (!stream.isRunning && stream.isDone)) {
+      setCancelling(false)
+    }
+  }, [cancelling, stream.isCancelled, stream.isDone, stream.isRunning])
+
   const startDesign = async () => {
     if (!pipeline.fileContent) {
       setError('Upload and process a file on the Home page first.')
@@ -94,10 +103,11 @@ export function SiloPage() {
       await jobsApi.cancel(jobId)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to cancel design')
-    } finally {
       setCancelling(false)
     }
   }
+
+  const isStopping = cancelling && !stream.isCancelled
 
   const monitorState = useMonitorState(
     poll.data as Record<string, unknown> | null | undefined,
@@ -114,6 +124,13 @@ export function SiloPage() {
     progressHistory.length > 0
       ? String(progressHistory[progressHistory.length - 1]?.message ?? '')
       : ''
+  const progressLabel = stream.isCancelled
+    ? 'Design cancelled'
+    : isStopping
+      ? 'Cancelling design, stopping jobs and simulations...'
+      : stream.isDone
+        ? 'Design complete'
+        : latestMessage || stream.statusText || 'Running single-loop design...'
 
   const tabs = [
     {
@@ -122,30 +139,30 @@ export function SiloPage() {
       content: (
         <>
           {started && (
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-4">
-              <div className="flex-1 [&>div]:my-0">
-                <ProgressBar
-                  value={latestProgress}
-                  label={
-                    stream.isCancelled
-                      ? 'Design cancelled'
-                      : stream.isDone
-                        ? 'Design complete'
-                        : latestMessage || stream.statusText || 'Running single-loop design...'
-                  }
-                />
+            <>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-4">
+                <div className="flex-1 [&>div]:my-0">
+                  <ProgressBar value={latestProgress} label={progressLabel} />
+                </div>
+                {stream.isRunning && !stream.isDone && !isStopping && (
+                  <button
+                    type="button"
+                    className={`${btnBase} shrink-0 border-[color-mix(in_srgb,var(--app-status-error-text)_35%,transparent)] text-[var(--app-status-error-text)] hover:bg-[var(--app-status-error-bg)]`}
+                    disabled={cancelling}
+                    onClick={() => void cancelDesign()}
+                  >
+                    Cancel Design
+                  </button>
+                )}
               </div>
-              {stream.isRunning && !stream.isDone && (
-                <button
-                  type="button"
-                  className={`${btnBase} shrink-0 border-[color-mix(in_srgb,var(--app-status-error-text)_35%,transparent)] text-[var(--app-status-error-text)] hover:bg-[var(--app-status-error-bg)]`}
-                  disabled={cancelling}
-                  onClick={() => void cancelDesign()}
-                >
-                  {cancelling ? 'Cancelling...' : 'Cancel Design'}
-                </button>
+              {isStopping && (
+                <ProcessingCard
+                  icon={OctagonX}
+                  title="Cancelling design..."
+                  description="Stopping all jobs, processes, and simulations. Please wait."
+                />
               )}
-            </div>
+            </>
           )}
           {stream.isCancelled && (
             <StatusMessage type="warning" message="Control design was cancelled. Partial results may still be available below." />

@@ -92,6 +92,15 @@ class JobStore:
             monitor = job.metadata.get("monitor")
             if monitor is not None:
                 monitor.is_running = False
+                monitor.add_progress("Cancelling design, stopping jobs and simulations...")
+            job.event_queue.put(
+                {
+                    "type": "stream",
+                    "content": {
+                        "text": "Cancelling design, stopping jobs and simulations...",
+                    },
+                }
+            )
         job.touch()
         return job
 

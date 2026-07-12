@@ -185,10 +185,18 @@ class LLMBaseAgent:
                 }
             )
 
+    def _ensure_running(self) -> None:
+        if self.monitor is not None and not getattr(self.monitor, "is_running", True):
+            from backend_api.SiloDesigner.app import DesignCancelledError
+
+            raise DesignCancelledError("Design cancelled by user")
+
     def invoke_llm(self, system_prompt, user_prompt, max_retries=3):
         """Invoke LLM with separate system and user prompts, retry logic and logging"""
         for attempt in range(max_retries):
             try:
+                self._ensure_running()
+
                 # Log the prompts
                 if attempt > 0:
                     log_to_file(f"Retry attempt {attempt + 1}/{max_retries} for {self.agent_name}")

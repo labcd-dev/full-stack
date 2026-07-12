@@ -19,6 +19,15 @@ logs_dir.mkdir(exist_ok=True)
 SCEN_HIST = logs_dir / f"scenario_history_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
 
+def _ensure_running(state: Dict) -> None:
+    """Abort the design graph immediately when the user requests cancellation."""
+    monitor = state.get("monitor")
+    if monitor is not None and not getattr(monitor, "is_running", True):
+        from backend_api.SiloDesigner.app import DesignCancelledError
+
+        raise DesignCancelledError("Design cancelled by user")
+
+
 def initialize_state(
     llm_model: str = "deepseek-r1-distill-llama-70b",
     run_id: int = 1,
@@ -208,6 +217,7 @@ def initialize_state(
 
 
 def suggest_controller(state: Dict) -> Dict:
+    _ensure_running(state)
     print(f"\n=== ðŸŽ›ï¸ SELECTING CONTROLLER FOR SCENARIO {state['scenario_level']} ===")
     controller_type = state["controllers_list"][state["current_controller_index"]]
     state["buffer"].system_name = state["system_name"]
@@ -331,6 +341,7 @@ def save_scenario_history(state: Dict) -> None:
 
 
 def design_scenario(state: Dict) -> Dict:
+    _ensure_running(state)
     if state["scenario_level"] > state["max_scenarios"]:
         print("ðŸ Exceeded maximum number of scenarios. Terminating workflow.")
         return {"should_continue_outer": False, "scenario": None}
@@ -401,6 +412,7 @@ def design_scenario(state: Dict) -> Dict:
 
 def propose_parameters(state: Dict) -> Dict:
     """Propose controller parameters (inner loop)"""
+    _ensure_running(state)
     actor = LLMActor(model=state["llm_model"], seed=state["seed"], monitor=state["monitor"])
     params = actor.generate_parameters(state["buffer"], state["controller_type"],
                                        state["iteration"], state["max_iterations"],
@@ -410,6 +422,7 @@ def propose_parameters(state: Dict) -> Dict:
 
 def run_simulation(state: Dict) -> Dict:
     """Run simulation with current parameters"""
+    _ensure_running(state)
     params = state["current_params"]
     simulator = state["simulator"]
 
@@ -468,6 +481,7 @@ def run_simulation(state: Dict) -> Dict:
 
 def evaluate_performance(state: Dict) -> Dict:
     """Evaluate controller performance"""
+    _ensure_running(state)
     params = state["current_params"]
     results = state["results"]
 
@@ -502,6 +516,7 @@ def evaluate_performance(state: Dict) -> Dict:
 
 def update_buffer(state: Dict) -> Dict:
     """Update history buffer with results"""
+    _ensure_running(state)
     feedback_json = json.loads(state["feedback"])
 
     # Store current parameter data
@@ -574,6 +589,7 @@ def update_buffer(state: Dict) -> Dict:
 
 
 def generate_final_report(state: Dict) -> Dict:
+    _ensure_running(state)
     print("\n=== FINAL REPORT ===")
     summary = f"Completed {state['scenario_level'] - 1} of {state['max_scenarios']} scenarios"
     log_to_file(f"\n=== FINAL OPTIMIZATION SUMMARY ===\n{summary}")
@@ -629,6 +645,7 @@ def needs_controller_redesign(state) -> str:
 
 def judge_termination(state: Dict) -> Dict:
     """Judge whether to terminate inner loop, incorporating LLMJuror."""
+    _ensure_running(state)
     termination_judge = LLMTerminator(model=state["llm_model"], seed=state["seed"], monitor=state["monitor"])
     juror = LLMJuror(model=state["llm_model"], seed=state["seed"],
                      max_tries=state["max_tries"], monitor=state["monitor"])
@@ -768,6 +785,7 @@ def judge_termination(state: Dict) -> Dict:
 
 def evaluate_scenario_completion(state: Dict) -> Dict:
     """Evaluate whether to move to next scenario or try a different controller."""
+    _ensure_running(state)
     # NEW: Compute wall clock time FIRST before any branching
     end_time = time.time()
     if state.get("scenario_start_time") is not None:

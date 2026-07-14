@@ -5,6 +5,8 @@ import type {
   JobResponse,
   JobStatusResponse,
   ModelsResponse,
+  MuloDesignerStateResponse,
+  MuloSimulateResponse,
   RagStatusResponse,
   RecommenderHandoffResponse,
   RegularizeResponse,
@@ -115,6 +117,18 @@ export const siloApi = {
 }
 
 export const muloApi = {
+  init: (body: {
+    run_config: Record<string, unknown>
+    controller_structure: Record<string, unknown>[]
+    system_identification: Record<string, unknown>
+    trimming_result: Record<string, unknown>
+    equation: string
+  }) =>
+    apiFetch<JobResponse>('/mulo/init', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
   start: (body: {
     run_config: Record<string, unknown>
     controller_structure: Record<string, unknown>[]
@@ -123,6 +137,49 @@ export const muloApi = {
     equation: string
   }) =>
     apiFetch<JobResponse>('/mulo/start', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  configure: (
+    jobId: string,
+    body: { case_study: Record<string, unknown>; controller_structure: Record<string, unknown>[] },
+  ) =>
+    apiFetch<JobResponse>(`/mulo/${jobId}/configure`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  run: (jobId: string) =>
+    apiFetch<JobResponse>(`/mulo/${jobId}/run`, {
+      method: 'POST',
+    }),
+
+  continue: (
+    jobId: string,
+    body: { equation: string; controller_structure: Record<string, unknown>[] },
+  ) =>
+    apiFetch<JobResponse>(`/mulo/${jobId}/continue`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  state: (jobId: string) => apiFetch<MuloDesignerStateResponse>(`/mulo/${jobId}/state`),
+
+  simulate: (
+    jobId: string,
+    body: { kp: number; ki: number; kd: number; signal_type: string },
+  ) =>
+    apiFetch<MuloSimulateResponse>(`/mulo/${jobId}/simulate`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  scratchpad: (
+    jobId: string,
+    body: { modified_code: string; modified_controller_structure: Record<string, unknown>[] },
+  ) =>
+    apiFetch<JobResponse>(`/mulo/${jobId}/scratchpad`, {
       method: 'POST',
       body: JSON.stringify(body),
     }),
@@ -141,4 +198,6 @@ export const jobsApi = {
 
 export const caseStudiesApi = {
   list: () => apiFetch<CaseStudiesResponse>('/case-studies'),
+  mulo: (name: string) =>
+    apiFetch<Record<string, unknown>>(`/case-studies/mulo/${encodeURIComponent(name)}`),
 }

@@ -5,6 +5,7 @@ import numpy as np
 from typing import Any, Dict, List
 
 from backend_api.MuloDesigner.GaAgent.ga_handler_agent import run_ga_handler
+from backend_api.MuloDesigner.GaAgent.src.utils import coerce_metric_targets, coerce_simulation_params
 from backend_api.MuloDesigner.agents import Agents
 
 
@@ -122,7 +123,9 @@ class MuloControllerDesigner:
 
 
     def design_controller_in_block(self, pid_loop):
-        self.case_study["fixed_targets"] = pid_loop['metrics']
+        self.case_study["fixed_targets"] = coerce_metric_targets(pid_loop.get('metrics'))
+        sim_params = coerce_simulation_params(self.case_study.get("simulation_params"))
+        self.case_study["simulation_params"] = sim_params
         # self.case_study["simulation_params"]["max_time"] = pid_loop["simulation_params"]['max_time']
         controllers = pid_loop["controllers"]
 

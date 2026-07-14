@@ -1,240 +1,495 @@
-import { useEffect, useState } from 'react'
-import { caseStudiesApi, muloApi } from '../api/endpoints'
-import { JsonViewer } from '../components/JsonViewer'
-import { ProgressBar } from '../components/ProgressBar'
-import { StatusMessage } from '../components/StatusMessage'
-import { Tabs } from '../components/Tabs'
-import { usePipeline } from '../context/PipelineContext'
-import { useJobStream } from '../hooks/useJobStream'
-import { usePoll } from '../hooks/usePoll'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
-  btnBase,
-  btnPrimary,
-  btnWide,
-  codePreview,
-  fieldInput,
-  fieldLabel,
-  pageIntro,
-  pageSection,
-} from '../lib/classes'
+  caseStudiesApi,
+  healthApi,
+  muloApi,
+  recommenderApi,
+  trimmerApi,
+} from '../api/endpoints'
+import type { MuloDesignerStateResponse } from '../api/types'
+import { MuloAdvancedSettings } from '../components/MuloAdvancedSettings'
+import { MuloCaseStudyEditor } from '../components/MuloCaseStudyEditor'
+import { MuloOptimizationDashboard } from '../components/MuloOptimizationDashboard'
+import {
+  MuloPipelineStepIndicator,
+  type MuloPipelineStep,
+} from '../components/MuloPipelineStepIndicator'
+import { MuloRecommenderStep } from '../components/MuloRecommenderStep'
+import { MuloTrimmerStep } from '../components/MuloTrimmerStep'
+import { ModelSelect } from '../components/ModelSelect'
+import { StatusMessage } from '../components/StatusMessage'
+import { usePipeline } from '../context/PipelineContext'
+import {
+  buildMuloRunConfig,
+  normalizeControllerStructure,
+  type MuloCaseStudyBundle,
+  type MuloPidLoop,
+  type MuloRunConfig,
+  type MuloStage,
+} from '../lib/muloDesignConfig'
+import { btnBase, btnPrimary, btnWide, fieldInput, fieldLabel, pageIntro, pageSection } from '../lib/classes'
 
-const DEFAULT_MULO_RUN_CONFIG = {
-  case_study_file: '',
-  seed: 42,
-  llm_model: 'gpt-4o-mini',
-  web_search_model: null,
-  max_attempts: 5,
-  buffer_size: 3,
-  max_wall_clock: 120,
-  max_cost_budget: 1,
-  prompt_variant: 'elaborate',
+type DataSource = 'case_study' | 'pipeline'
+
+function resolveInitialPipelineStep(
+  stepParam: string | null,
+  hasRecommender: boolean,
+  hasHandoff: boolean,
+  hasTrimmer: boolean,
+): MuloPipelineStep {
+  if (stepParam === 'recommender' || stepParam === 'trimmer' || stepParam === 'designer') {
+    return stepParam
+  }
+  if (hasTrimmer || (hasRecommender && hasHandoff)) {
+    return hasTrimmer ? 'designer' : 'trimmer'
+  }
+  if (hasRecommender || hasHandoff) {
+    return 'trimmer'
+  }
+  return 'recommender'
 }
 
 export function MuloPage() {
   const pipeline = usePipeline()
-  const [caseStudies, setCaseStudies] = useState<string[]>([])
-  const [selectedCase, setSelectedCase] = useState('')
-  const [equation, setEquation] = useState(pipeline.fileContent)
-  const [runConfigJson, setRunConfigJson] = useState(
-    () => JSON.stringify(DEFAULT_MULO_RUN_CONFIG, null, 2),
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  const stepParam = searchParams.get('step')
+
+  const isPipelineWorkflow = pipeline.pipeline === 'muloDesign' || Boolean(
+    pipeline.fileContent && (pipeline.recommenderJobId || pipeline.handoff),
+  ) || stepParam === 'recommender' || stepParam === 'trimmer'
+
+  const [pipelineStep, setPipelineStep] = useState<MuloPipelineStep>(() =>
+    isPipelineWorkflow
+      ? resolveInitialPipelineStep(
+          stepParam,
+          Boolean(pipeline.recommenderJobId),
+          Boolean(pipeline.handoff),
+          Boolean(pipeline.trimmerJobId),
+        )
+      : 'designer',
   )
-  const [controllerStructureJson, setControllerStructureJson] = useState('[]')
-  const [systemIdJson, setSystemIdJson] = useState('{}')
-  const [trimmingResultJson, setTrimmingResultJson] = useState('{}')
-  const [error, setError] = useState<string | null>(null)
+
+  const [stage, setStage] = useState<MuloStage>('setup')
+  const [dataSource, setDataSource] = useState<DataSource>(() =>
+    pipeline.recommenderJobId && pipeline.trimmerJobId ? 'pipeline' : 'case_study',
+  )
+  const [caseStudies, setCaseStudies] = useState<string[]>([])
+  const [objectives, setObjectives] = useState<Record<string, string>>({})
+  const [selectedCase, setSelectedCase] = useState('')
+  const [models, setModels] = useState<string[]>(['gpt-4o-mini'])
+  const [webSearchModels, setWebSearchModels] = useState<string[]>(['gpt-4o'])
+  const [runConfig, setRunConfig] = useState<MuloRunConfig>(() =>
+    buildMuloRunConfig({ control_objective: '' }),
+  )
+  const [designerState, setDesignerState] = useState<MuloDesignerStateResponse | null>(null)
+  const [defaultStructure, setDefaultStructure] = useState<MuloPidLoop[]>([])
+  const [defaultSimParams, setDefaultSimParams] = useState({ dt: 0.001, max_time: 50 })
   const [loading, setLoading] = useState(false)
-  const [started, setStarted] = useState(false)
-  const [activeTab, setActiveTab] = useState('process')
-  const [plotData, setPlotData] = useState<Record<string, unknown> | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [optimizationRunKey, setOptimizationRunKey] = useState(0)
 
   const jobId = pipeline.muloJobId
-  const stream = useJobStream({ module: 'mulo', jobId, enabled: started })
 
   useEffect(() => {
+    if (
+      stepParam === 'recommender'
+      || stepParam === 'trimmer'
+      || stepParam === 'designer'
+    ) {
+      setPipelineStep(stepParam)
+    }
+  }, [stepParam])
+
+  useEffect(() => {
+    healthApi.models().then((res) => {
+      setModels(res.llm_models)
+      setWebSearchModels(res.rag_models)
+    }).catch(() => {})
     caseStudiesApi.list().then((res) => {
-      setCaseStudies(res.ga_json)
-      if (res.ga_json.length > 0) setSelectedCase(res.ga_json[0])
+      setCaseStudies(res.mulo ?? [])
+      setObjectives(res.mulo_objectives ?? {})
+      if (res.mulo?.length) {
+        setSelectedCase(res.mulo[0])
+        setRunConfig((prev) => ({
+          ...prev,
+          case_study_file: res.mulo[0],
+          control_objective: res.mulo_objectives?.[res.mulo[0]] ?? prev.control_objective,
+        }))
+      }
     }).catch(() => {})
   }, [])
 
   useEffect(() => {
-    if (pipeline.fileContent) setEquation(pipeline.fileContent)
-  }, [pipeline.fileContent])
+    if (!selectedCase || dataSource !== 'case_study') return
+    setRunConfig((prev) => ({
+      ...prev,
+      case_study_file: selectedCase,
+      control_objective: objectives[selectedCase] ?? prev.control_objective,
+    }))
+  }, [selectedCase, objectives, dataSource])
 
-  const fetchPlotData = async () => {
-    if (!jobId) return null
-    return muloApi.plotData(jobId)
-  }
-
-  const poll = usePoll(fetchPlotData, 2000, started && !stream.isDone)
-
-  useEffect(() => {
-    if (poll.data) setPlotData(poll.data as Record<string, unknown>)
-  }, [poll.data])
-
-  useEffect(() => {
-    if (stream.isDone && jobId) {
-      void muloApi.plotData(jobId).then(setPlotData).catch(() => {})
+  const completedPipelineSteps = useMemo((): MuloPipelineStep[] => {
+    const completed: MuloPipelineStep[] = []
+    if (pipeline.handoff || pipeline.recommenderJobId) {
+      completed.push('recommender')
     }
-  }, [stream.isDone, jobId])
+    if (pipeline.trimmerJobId) {
+      completed.push('trimmer')
+    }
+    if (pipeline.muloJobId) {
+      completed.push('designer')
+    }
+    return completed
+  }, [pipeline.handoff, pipeline.recommenderJobId, pipeline.trimmerJobId, pipeline.muloJobId])
 
-  const startMulo = async () => {
+  const goToPipelineStep = useCallback((step: MuloPipelineStep) => {
+    setPipelineStep(step)
+    setSearchParams({ step }, { replace: true })
+    if (step === 'designer' && pipeline.recommenderJobId && pipeline.trimmerJobId) {
+      setDataSource('pipeline')
+    }
+  }, [pipeline.recommenderJobId, pipeline.trimmerJobId, setSearchParams])
+
+  const loadCaseStudyBundle = useCallback(async (name: string) => {
+    const bundle = (await caseStudiesApi.mulo(name)) as unknown as MuloCaseStudyBundle
+    return {
+      controller_structure: normalizeControllerStructure(bundle.controller),
+      system_identification: bundle.system,
+      trimming_result: bundle.trimming,
+      equation: bundle.equation,
+    }
+  }, [])
+
+  const loadPipelineBundle = useCallback(async () => {
+    if (!pipeline.recommenderJobId || !pipeline.trimmerJobId) {
+      throw new Error('Complete Recommender and Trimmer steps before using pipeline data.')
+    }
+    const [recState, trimArtifacts] = await Promise.all([
+      recommenderApi.state(pipeline.recommenderJobId),
+      trimmerApi.artifacts(pipeline.trimmerJobId),
+    ])
+    const controllerJson = (recState.controller_json ?? {}) as Record<string, string>
+    const chosen = pipeline.handoff?.chosen_controller ?? controllerJson.Initial_controller
+    if (!chosen || !controllerJson[chosen]) {
+      throw new Error('Chosen controller not found in recommender state.')
+    }
+    const controller = JSON.parse(controllerJson[chosen]) as { pid_loops: MuloPidLoop[] }
+    const systemIdentification = JSON.parse(String(recState.system_identification ?? '{}'))
+    const trimmingResult = (trimArtifacts.result ?? trimArtifacts) as Record<string, unknown>
+
+    return {
+      controller_structure: controller.pid_loops,
+      system_identification: systemIdentification,
+      trimming_result: trimmingResult,
+      equation: pipeline.fileContent,
+    }
+  }, [pipeline])
+
+  const initializeDesigner = async () => {
     setLoading(true)
     setError(null)
     try {
-      const job = await muloApi.start({
-        run_config: JSON.parse(runConfigJson),
-        controller_structure: JSON.parse(controllerStructureJson),
-        system_identification: JSON.parse(systemIdJson),
-        trimming_result: JSON.parse(trimmingResultJson),
-        equation,
+      const bundle =
+        dataSource === 'pipeline'
+          ? await loadPipelineBundle()
+          : await loadCaseStudyBundle(selectedCase)
+
+      const config = buildMuloRunConfig({
+        ...runConfig,
+        case_study_file: dataSource === 'case_study' ? selectedCase : '',
+        llm_model: runConfig.llm_model || pipeline.model,
       })
+
+      const job = await muloApi.init({
+        run_config: config as unknown as Record<string, unknown>,
+        controller_structure: bundle.controller_structure as unknown as Record<string, unknown>[],
+        system_identification: bundle.system_identification,
+        trimming_result: bundle.trimming_result,
+        equation: bundle.equation,
+      })
+
       pipeline.setMuloJobId(job.job_id)
-      setStarted(true)
+      const state = await muloApi.state(job.job_id)
+      setDesignerState(state)
+      setDefaultStructure(state.controller_structure as unknown as MuloPidLoop[])
+      const sim = (state.case_study.simulation_params ?? {}) as { dt?: number; max_time?: number }
+      setDefaultSimParams({
+        dt: sim.dt ?? 0.001,
+        max_time: sim.max_time ?? 50,
+      })
+      setRunConfig(config)
+      setStage('edit_case_study')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start MuloDesigner')
+      setError(err instanceof Error ? err.message : 'Failed to initialize designer')
     } finally {
       setLoading(false)
     }
   }
 
-  const loadFromTrimmer = () => {
-    if (pipeline.handoff) {
-      setEquation(pipeline.handoff.file_content)
+  const runOptimization = async (
+    structure: MuloPidLoop[],
+    simulationParams: { dt: number; max_time: number },
+  ) => {
+    if (!jobId || !designerState) return
+    setLoading(true)
+    setError(null)
+    try {
+      const caseStudy = {
+        ...designerState.case_study,
+        simulation_params: simulationParams,
+      }
+      await muloApi.configure(jobId, {
+        case_study: caseStudy,
+        controller_structure: structure as unknown as Record<string, unknown>[],
+      })
+      await muloApi.run(jobId)
+      setOptimizationRunKey((prev) => prev + 1)
+      setStage('running')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start optimization')
+    } finally {
+      setLoading(false)
     }
-    setTrimmingResultJson(JSON.stringify(pipeline.trimmingParams, null, 2))
   }
 
-  const tabs = [
-    {
-      id: 'process',
-      label: 'GA Optimization',
-      content: (
-        <>
-          {started && (
-            <ProgressBar
-              value={stream.progress}
-              label={stream.isDone ? 'Optimization complete' : 'Running GA optimization...'}
-            />
-          )}
-          {stream.error && <StatusMessage type="error" message={stream.error} />}
-          {plotData && Object.keys(plotData).length > 0 && (
-            <JsonViewer data={plotData} title="Plot Data (from API)" />
-          )}
-        </>
-      ),
-    },
-    {
-      id: 'events',
-      label: 'Stream Events',
-      content: (
-        <div className="flex flex-col gap-3">
-          {stream.events.map((event, index) => (
-            <pre
-              key={index}
-              className="m-0 whitespace-pre-wrap break-words font-mono text-[0.82rem] text-foreground-secondary"
-            >
-              {JSON.stringify(event, null, 2)}
-            </pre>
-          ))}
-        </div>
-      ),
-    },
-  ]
+  const handleOptimizationComplete = useCallback((state: MuloDesignerStateResponse) => {
+    setDesignerState(state)
+    setStage('complete')
+  }, [])
+
+  const continueNextLoop = async () => {
+    if (!jobId) return
+    setLoading(true)
+    setError(null)
+    try {
+      const latest = await muloApi.state(jobId)
+      await muloApi.continue(jobId, {
+        equation: latest.modified_code,
+        controller_structure: latest.modified_controller_structure,
+      })
+      const state = await muloApi.state(jobId)
+      setDesignerState(state)
+      setDefaultStructure(state.controller_structure as unknown as MuloPidLoop[])
+      setOptimizationRunKey((prev) => prev + 1)
+      setStage('running')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to continue to next loop')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const resetExperiment = () => {
+    pipeline.setMuloJobId(null)
+    setDesignerState(null)
+    setStage('setup')
+    setError(null)
+  }
+
+  const editorStructure = useMemo(
+    () => (designerState?.controller_structure as unknown as MuloPidLoop[]) ?? defaultStructure,
+    [designerState, defaultStructure],
+  )
+
+  const editorSimParams = useMemo(() => {
+    const sim = (designerState?.case_study?.simulation_params ?? defaultSimParams) as {
+      dt?: number
+      max_time?: number
+    }
+    return { dt: sim.dt ?? 0.001, max_time: sim.max_time ?? 50 }
+  }, [designerState, defaultSimParams])
+
+  const canUsePipeline = Boolean(
+    pipeline.fileContent && pipeline.recommenderJobId && pipeline.trimmerJobId,
+  )
+
+  const handleRecommenderComplete = () => {
+    goToPipelineStep('trimmer')
+  }
+
+  const handleTrimmerComplete = () => {
+    setDataSource('pipeline')
+    goToPipelineStep('designer')
+  }
 
   return (
     <section className={pageSection}>
       <h2 className="mt-0 text-foreground">Multi Loop Control Designer</h2>
       <p className={pageIntro}>
         LLM-enhanced genetic algorithm for multi-loop PID controller design.
+        {isPipelineWorkflow && ' Run Recommender, Trimmer, and Designer in one workflow.'}
       </p>
 
-      {error && <StatusMessage type="error" message={error} />}
-
-      {!started && (
-        <>
-          <div className="grid grid-cols-[2fr_1fr] gap-4 mb-4 max-md:grid-cols-1">
-            <label className={fieldLabel}>
-              <span>Case Study (JSON)</span>
-              <select
-                className={fieldInput}
-                value={selectedCase}
-                onChange={(e) => setSelectedCase(e.target.value)}
-              >
-                {caseStudies.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button type="button" className={`${btnBase} self-end`} onClick={loadFromTrimmer}>
-              Load from Trimmer Handoff
-            </button>
-          </div>
-
-          <label className={fieldLabel}>
-            <span>Equation</span>
-            <textarea
-              className={codePreview}
-              value={equation}
-              onChange={(e) => setEquation(e.target.value)}
-              rows={6}
-            />
-          </label>
-
-          <label className={fieldLabel}>
-            <span>Run Config (JSON)</span>
-            <textarea
-              className={codePreview}
-              value={runConfigJson}
-              onChange={(e) => setRunConfigJson(e.target.value)}
-              rows={4}
-            />
-          </label>
-
-          <label className={fieldLabel}>
-            <span>Controller Structure (JSON array)</span>
-            <textarea
-              className={codePreview}
-              value={controllerStructureJson}
-              onChange={(e) => setControllerStructureJson(e.target.value)}
-              rows={4}
-            />
-          </label>
-
-          <label className={fieldLabel}>
-            <span>System Identification (JSON)</span>
-            <textarea
-              className={codePreview}
-              value={systemIdJson}
-              onChange={(e) => setSystemIdJson(e.target.value)}
-              rows={4}
-            />
-          </label>
-
-          <label className={fieldLabel}>
-            <span>Trimming Result (JSON)</span>
-            <textarea
-              className={codePreview}
-              value={trimmingResultJson}
-              onChange={(e) => setTrimmingResultJson(e.target.value)}
-              rows={4}
-            />
-          </label>
-
-          <button
-            type="button"
-            className={`${btnPrimary} ${btnWide}`}
-            disabled={loading || !equation.trim()}
-            onClick={() => void startMulo()}
-          >
-            Start Multi Loop Design
-          </button>
-        </>
+      {isPipelineWorkflow && (
+        <MuloPipelineStepIndicator
+          step={pipelineStep}
+          completedSteps={completedPipelineSteps}
+          onStepClick={(step) => {
+            if (step === 'recommender' || completedPipelineSteps.includes(step)) {
+              goToPipelineStep(step)
+            }
+          }}
+        />
       )}
 
-      {started && <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />}
+      {error && pipelineStep === 'designer' && <StatusMessage type="error" message={error} />}
+
+      {pipelineStep === 'recommender' && (
+        <MuloRecommenderStep onComplete={handleRecommenderComplete} />
+      )}
+
+      {pipelineStep === 'trimmer' && (
+        <MuloTrimmerStep onComplete={handleTrimmerComplete} />
+      )}
+
+      {pipelineStep === 'designer' && (
+        <>
+          {error && <StatusMessage type="error" message={error} />}
+
+          {stage === 'setup' && (
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-wrap gap-3">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="mulo-source"
+                    checked={dataSource === 'case_study'}
+                    onChange={() => setDataSource('case_study')}
+                  />
+                  Case Study
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="mulo-source"
+                    checked={dataSource === 'pipeline'}
+                    onChange={() => setDataSource('pipeline')}
+                    disabled={!canUsePipeline}
+                  />
+                  From Pipeline (Recommender + Trimmer)
+                </label>
+              </div>
+
+              {dataSource === 'case_study' ? (
+                <label className={fieldLabel}>
+                  <span>Case Study</span>
+                  <select
+                    className={fieldInput}
+                    value={selectedCase}
+                    onChange={(e) => setSelectedCase(e.target.value)}
+                  >
+                    {caseStudies.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <StatusMessage
+                  type="info"
+                  message={`Using pipeline data: ${pipeline.fileName || 'uploaded file'} with chosen controller "${pipeline.handoff?.chosen_controller ?? 'default'}".`}
+                />
+              )}
+
+              {isPipelineWorkflow && !canUsePipeline && (
+                <StatusMessage
+                  type="warning"
+                  message="Complete Recommender and Trimmer steps above, or select a case study."
+                />
+              )}
+
+              <ModelSelect
+                models={models}
+                value={runConfig.llm_model}
+                onChange={(llm_model) => setRunConfig((prev) => ({ ...prev, llm_model }))}
+                label="LLM Model"
+              />
+
+              <MuloAdvancedSettings
+                value={runConfig}
+                onChange={setRunConfig}
+                models={models}
+                webSearchModels={webSearchModels}
+              />
+
+              <button
+                type="button"
+                className={`${btnPrimary} ${btnWide}`}
+                disabled={loading || (dataSource === 'case_study' && !selectedCase) || (dataSource === 'pipeline' && !canUsePipeline)}
+                onClick={() => void initializeDesigner()}
+              >
+                {loading ? 'Initializing Controller Designer Profile…' : 'Initialize Controller Designer Profile'}
+              </button>
+
+              {isPipelineWorkflow && (
+                <button
+                  type="button"
+                  className={btnBase}
+                  onClick={() => goToPipelineStep('recommender')}
+                >
+                  Back to Recommender
+                </button>
+              )}
+            </div>
+          )}
+
+          {stage === 'edit_case_study' && designerState && (
+            <MuloCaseStudyEditor
+              controllerStructure={editorStructure}
+              simulationParams={editorSimParams}
+              loopIndex={designerState.controller_index}
+              onBack={() => setStage('setup')}
+              onReset={() => {
+                setDesignerState((prev) => {
+                  if (!prev) return prev
+                  return {
+                    ...prev,
+                    controller_structure: defaultStructure as unknown as Record<string, unknown>[],
+                    case_study: {
+                      ...prev.case_study,
+                      simulation_params: defaultSimParams,
+                    },
+                  }
+                })
+              }}
+              onRun={(structure, simulationParams) => void runOptimization(structure, simulationParams)}
+              loading={loading}
+            />
+          )}
+
+          {(stage === 'running' || stage === 'complete') && jobId && (
+            <MuloOptimizationDashboard
+              key={`${jobId}-${optimizationRunKey}`}
+              jobId={jobId}
+              runConfig={runConfig}
+              designerState={designerState}
+              onComplete={handleOptimizationComplete}
+              onNewExperiment={resetExperiment}
+            />
+          )}
+
+          {stage === 'complete' && designerState && !designerState.is_complete && (
+            <button
+              type="button"
+              className={`${btnPrimary} ${btnWide} mt-4`}
+              disabled={loading}
+              onClick={() => void continueNextLoop()}
+            >
+              Continue Controller Design (Loop {designerState.controller_index + 1})
+            </button>
+          )}
+
+          {stage === 'complete' && designerState?.is_complete && (
+            <StatusMessage
+              type="success"
+              message="All cascade loops have been designed. Review final results in the Final Result tab."
+            />
+          )}
+        </>
+      )}
     </section>
   )
 }

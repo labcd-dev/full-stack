@@ -76,4 +76,6 @@ def recommender_handoff(job_id: str, request: RecommenderHandoffRequest) -> Reco
         handoff = build_trimmer_handoff(job_id, request.chosen_controller)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Job not found") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return RecommenderHandoffResponse(**handoff)

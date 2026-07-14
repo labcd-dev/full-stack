@@ -3,7 +3,12 @@ from typing import Dict, Any
 import time
 
 from backend_api.MuloDesigner.GaAgent.src.graph import create_ga_handler_graph
-from backend_api.MuloDesigner.GaAgent.src.utils import load_case_study
+from backend_api.MuloDesigner.GaAgent.src.utils import (
+    coerce_float,
+    coerce_metric_targets,
+    coerce_simulation_params,
+    load_case_study,
+)
 from backend_api.MuloDesigner.GaAgent.src.logger import get_logger
 
 # Get logger for this module
@@ -44,8 +49,8 @@ def initialize_ga_handler_state(
     state = {
         "current_attempt": 1,
         "experiment_start_time": time.time(),  # set once; shared across all GA attempts
-        "max_attempts": max_attempts,
-        "max_wall_clock": max_wall_clock,
+        "max_attempts": max(int(coerce_float(max_attempts, 5)), 1),
+        "max_wall_clock": coerce_float(max_wall_clock, 3600.0),
         "total_elapsed_time": 0.0,
         "prompt_variant": prompt_variant,
         "buffer_size": buffer_size,
@@ -74,7 +79,7 @@ def initialize_ga_handler_state(
         "max_ctrl": case_study["max_ctrl"],
         "system_description": case_study.get("system_description"),
         "python_code": case_study.get("python_code"),
-        "max_cost_budget": max_cost_budget,  # Maximum allowed cost in dollars
+        "max_cost_budget": coerce_float(max_cost_budget, 1.0),  # Maximum allowed cost in dollars
         "total_cost_consumed": 0.0,  # Total cost consumed so far
         "warm_start_config": warm_start_config,
         "system_aware": system_aware,
@@ -139,17 +144,8 @@ def run_ga_handler(
     logger.info(f"âœ“ Loaded case study: {case_study['system_name']}")
 
     # Extract fixed_targets and simulation_params from case study
-    fixed_targets = case_study.get('fixed_targets', {
-        'mse': 0.01,
-        'settling_time': 5.0,
-        'overshoot': 10.0,
-        'control_effort': 0.5
-    })
-
-    simulation_params = case_study.get('simulation_params', {
-        'dt': 0.01,
-        'max_time': 10.0
-    })
+    fixed_targets = coerce_metric_targets(case_study.get('fixed_targets'))
+    simulation_params = coerce_simulation_params(case_study.get('simulation_params'))
 
     # Default initial weights if not provided
     default_weights = {

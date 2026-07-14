@@ -3,8 +3,58 @@ import os
 import re
 import numpy as np
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from datetime import datetime
+
+METRIC_KEYS = ('mse', 'settling_time', 'overshoot', 'control_effort')
+METRIC_DEFAULTS = {
+    'mse': 0.01,
+    'settling_time': 5.0,
+    'overshoot': 10.0,
+    'control_effort': 0.5,
+}
+
+
+def coerce_float(value: Any, default: float = 0.0) -> float:
+    """Convert API/LLM values to float for numeric comparisons."""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value.strip())
+        except ValueError:
+            return default
+    if hasattr(value, 'item'):
+        try:
+            return float(value.item())
+        except (TypeError, ValueError):
+            return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def coerce_metric_targets(data: Optional[Dict[str, Any]] = None) -> Dict[str, float]:
+    """Normalize performance target dict to float values."""
+    source = data or {}
+    return {
+        key: coerce_float(source.get(key), METRIC_DEFAULTS[key])
+        for key in METRIC_KEYS
+    }
+
+
+def coerce_simulation_params(data: Optional[Dict[str, Any]] = None) -> Dict[str, float]:
+    """Normalize simulation timing parameters to floats."""
+    source = data or {}
+    return {
+        'dt': coerce_float(source.get('dt'), 0.01),
+        'max_time': coerce_float(source.get('max_time'), 10.0),
+    }
 
 
 def gen_experiment_filename(
@@ -65,21 +115,8 @@ def load_case_study(json_filename: str) -> Dict[str, Any]:
         # Default to zeros if not specified
         data["trim_ics"] = [0.0] * data.get("num_states", 2)
 
-    # Post-process: fixed_targets - provide defaults if not in JSON
-    if "fixed_targets" not in data:
-        data["fixed_targets"] = {
-            'mse': 0.01,
-            'settling_time': 5.0,
-            'overshoot': 10.0,
-            'control_effort': 0.5
-        }
-
-    # Post-process: simulation_params - provide defaults if not in JSON
-    if "simulation_params" not in data:
-        data["simulation_params"] = {
-            'dt': 0.01,
-            'max_time': 10.0
-        }
+    data["fixed_targets"] = coerce_metric_targets(data.get("fixed_targets"))
+    data["simulation_params"] = coerce_simulation_params(data.get("simulation_params"))
 
     return data
 

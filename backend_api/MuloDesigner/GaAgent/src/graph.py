@@ -13,7 +13,12 @@ from backend_api.MuloDesigner.GaAgent.src.agents.llm_agent import LLMAgent
 from backend_api.MuloDesigner.GaAgent.src.agents.base_agent import extract_json_from_response
 from backend_api.MuloDesigner.GaAgent.src.ga_optimizer import GAOptimizer
 from backend_api.MuloDesigner.GaAgent.src.simulator import SystemSimulator
-from backend_api.MuloDesigner.GaAgent.src.utils import format_markdown_ga_feedback_for_prompt
+from backend_api.MuloDesigner.GaAgent.src.utils import (
+    METRIC_KEYS,
+    coerce_float,
+    coerce_metric_targets,
+    format_markdown_ga_feedback_for_prompt,
+)
 from backend_api.MuloDesigner.GaAgent.src.logger import get_logger
 from backend_api.MuloDesigner.GaAgent.src.callbacks import get_callback
 
@@ -411,7 +416,7 @@ def optimize_with_ga_node(state: GAConfigState) -> Dict[str, Any]:
     tuning_specs = state['tuning_specs']
     working_function = state['working_function']
     weights = tuning_specs['weights']
-    fixed_targets = tuning_specs['fixed_targets']
+    fixed_targets = coerce_metric_targets(tuning_specs.get('fixed_targets'))
     sim_params = tuning_specs['simulation_params']
 
     logger.info(f"Running GA with:")
@@ -506,23 +511,28 @@ def evaluate_ga_node(state: GAConfigState) -> Dict[str, Any]:
     opt_results = state['optimization_results']
     tuning_specs = state['tuning_specs']
     ga_config = state['ga_config']
-    fixed_targets = tuning_specs['fixed_targets']
+    fixed_targets = coerce_metric_targets(tuning_specs.get('fixed_targets'))
     weights = tuning_specs['weights']
 
     # Use baseline cost for decision-making
     if opt_results['success']:
-        baseline_cost = opt_results['baseline_cost']
-        ga_cost = opt_results['ga_cost']
+        baseline_cost = coerce_float(opt_results['baseline_cost'], float('inf'))
+        ga_cost = coerce_float(opt_results['ga_cost'], float('inf'))
     else:
         baseline_cost = float('inf')
         ga_cost = float('inf')
+
+    max_wall_clock = coerce_float(state.get('max_wall_clock'), float('inf'))
+    max_cost_budget = coerce_float(state.get('max_cost_budget'), float('inf'))
+    max_attempts = max(int(coerce_float(state.get('max_attempts'), 1)), 1)
 
     # Compute success score (25 points per metric met or bettered)
     success_score = 0
     metric_comparisons = {}
     if opt_results['success']:
-        for metric in fixed_targets:
-            achieved_val = opt_results['achieved_metrics'].get(metric, float('inf'))
+        achieved_metrics = opt_results.get('achieved_metrics', {})
+        for metric in METRIC_KEYS:
+            achieved_val = coerce_float(achieved_metrics.get(metric), float('inf'))
             target_val = fixed_targets[metric]
             passed = achieved_val <= target_val
             if passed:
@@ -534,7 +544,7 @@ def evaluate_ga_node(state: GAConfigState) -> Dict[str, Any]:
             }
     else:
         success_score = 0
-        for metric in fixed_targets:
+        for metric in METRIC_KEYS:
             metric_comparisons[metric] = {
                 'achieved': None,
                 'target': fixed_targets[metric],
@@ -580,10 +590,13 @@ def evaluate_ga_node(state: GAConfigState) -> Dict[str, Any]:
 
     # Update best result - prioritize success_score, then baseline_cost
     current_score = success_score if opt_results['success'] else 0
+    previous_best = state['best_result'] or {}
+    previous_best_score = int(coerce_float(previous_best.get('best_score'), -1))
+    previous_best_baseline = coerce_float(previous_best.get('best_baseline_cost'), float('inf'))
     if (state['best_result'] is None or
-            current_score > state['best_result'].get('best_score', -1) or
-            (current_score == state['best_result'].get('best_score', -1) and
-             baseline_cost < state['best_result'].get('best_baseline_cost', float('inf')))):
+            current_score > previous_best_score or
+            (current_score == previous_best_score and
+             baseline_cost < previous_best_baseline)):
         best_result = {
             'best_attempt': state['current_attempt'],
             'best_baseline_cost': baseline_cost,
@@ -609,16 +622,16 @@ def evaluate_ga_node(state: GAConfigState) -> Dict[str, Any]:
     if opt_results['success'] and success_score == 100:
         decision = {'action': 'proceed', 'reason': 'Full success: all 4 metrics met or bettered (score=100/100)'}
         logger.info(f"âœ“ DECISION: PROCEED - {decision['reason']}")
-    elif state['current_attempt'] >= state['max_attempts']:
-        decision = {'action': 'accept_suboptimal', 'reason': f'Max attempts reached ({state["max_attempts"]})'}
+    elif state['current_attempt'] >= max_attempts:
+        decision = {'action': 'accept_suboptimal', 'reason': f'Max attempts reached ({max_attempts})'}
         logger.info(f"âš  DECISION: ACCEPT SUBOPTIMAL - {decision['reason']}")
-    elif current_total_time >= state.get('max_wall_clock', float('inf')):
+    elif current_total_time >= max_wall_clock:
         decision = {'action': 'accept_suboptimal',
-                   'reason': f'Max wall clock reached ({current_total_time:.2f}s >= {state["max_wall_clock"]}s)'}
+                   'reason': f'Max wall clock reached ({current_total_time:.2f}s >= {max_wall_clock}s)'}
         logger.info(f"â± DECISION: ACCEPT SUBOPTIMAL - {decision['reason']}")
-    elif current_total_cost >= state.get('max_cost_budget', float('inf')):  # ADD THIS CHECK
+    elif current_total_cost >= max_cost_budget:  # ADD THIS CHECK
         decision = {'action': 'accept_suboptimal',
-                   'reason': f'Max cost budget reached (${current_total_cost:.6f} >= ${state["max_cost_budget"]:.6f})'}
+                   'reason': f'Max cost budget reached (${current_total_cost:.6f} >= ${max_cost_budget:.6f})'}
         logger.info(f"ðŸ’° DECISION: ACCEPT SUBOPTIMAL - {decision['reason']}")
     else:
         decision = {'action': 'retry',
@@ -639,11 +652,9 @@ def evaluate_ga_node(state: GAConfigState) -> Dict[str, Any]:
                 'achieved_metrics': opt_results.get('achieved_metrics', {}),
                 'controller_gains': opt_results.get('controller_parameters', {}),
                 'time_remaining_pct': max(0.0,
-                                          (1.0 - current_total_time / max(state.get('max_wall_clock', 1),
-                                                                          1e-9)) * 100),
+                                          (1.0 - current_total_time / max(max_wall_clock, 1e-9)) * 100),
                 'cost_remaining_pct': max(0.0,
-                                          (1.0 - current_total_cost / max(state.get('max_cost_budget', 1),
-                                                                          1e-9)) * 100),
+                                          (1.0 - current_total_cost / max(max_cost_budget, 1e-9)) * 100),
                 'param_ranges': ga_config['param_ranges']['PID'],
                 'weights': tuning_specs['weights'],
                 'pop_size': ga_config['ga_population_size'],
@@ -702,7 +713,7 @@ def should_continue(state: GAConfigState) -> str:
         return "end"
 
     current_attempt = state.get('current_attempt', 1)
-    max_attempts = state.get('max_attempts', 1)
+    max_attempts = max(int(coerce_float(state.get('max_attempts'), 1)), 1)
     if current_attempt > max_attempts:
         logger.warning(
             "Stopping GA loop: current_attempt=%s exceeded max_attempts=%s",

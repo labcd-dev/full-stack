@@ -6,6 +6,7 @@ from typing import Dict, Any, List, Optional
 
 from backend_api.MuloDesigner.GaAgent.src.simulator import SystemSimulator
 from backend_api.MuloDesigner.GaAgent.src.logger import get_logger
+from backend_api.MuloDesigner.GaAgent.src.utils import coerce_float, coerce_metric_targets
 from backend_api.MuloDesigner.GaAgent.src.callbacks import get_callback
 
 logger = get_logger(__name__)
@@ -29,7 +30,7 @@ class GAOptimizer:
 
         # Wall-clock budget for the ENTIRE experiment (seconds).
         # GA stops if time.time() - experiment_start_time >= max_wall_clock.
-        self.max_wall_clock: float = config.get('max_wall_clock', float('inf'))
+        self.max_wall_clock: float = coerce_float(config.get('max_wall_clock'), float('inf'))
 
         # NFE already accumulated by previous GA runs in this experiment
         # (LLM-GA multi-attempt case).
@@ -109,7 +110,7 @@ class GAOptimizer:
         target_hit_generation : generation index when score first = 100 (or None)
         """
         self.weights       = weights
-        self.fixed_targets = fixed_targets
+        self.fixed_targets = coerce_metric_targets(fixed_targets)
         self.num_evaluations = 0
 
         # Fall back: if the caller never set experiment_start_time, start now.

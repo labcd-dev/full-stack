@@ -75,7 +75,6 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
           ...prev,
           handoff,
           fileContent: handoff?.file_content ?? prev.fileContent,
-          trimmingParams: handoff?.trimming_params ?? prev.trimmingParams,
           statesInputs: handoff?.states_inputs ?? prev.statesInputs,
         })),
       setTrimmingParams: (trimmingParams) =>

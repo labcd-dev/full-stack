@@ -1,6 +1,6 @@
 """Recommender API schemas."""
 
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -24,5 +24,5 @@ class RecommenderHandoffRequest(BaseModel):
 class RecommenderHandoffResponse(BaseModel):
     file_content: str
     chosen_controller: str
-    trimming_params: Dict[str, Any]
+    trimming_params: List[str]
     states_inputs: List[str]

@@ -380,6 +380,25 @@
   padding: 0 0.5rem;
 }
 
+.setup-steps__node--button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  border-radius: 0.5rem;
+  transition: background 0.15s ease;
+}
+
+.setup-steps__node--button:hover {
+  background: color-mix(in srgb, var(--app-primary) 8%, transparent);
+}
+
+.setup-steps__node--button:focus-visible {
+  outline: 2px solid var(--app-primary);
+  outline-offset: 2px;
+}
+
 .setup-steps__icon-wrap {
   display: flex;
   align-items: center;

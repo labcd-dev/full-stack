@@ -116,14 +116,14 @@ export function HomePage() {
 
   const proceedToPipeline = () => {
     if (pipeline.pipeline === 'muloDesign') {
-      navigate('/recommender')
+      navigate('/mulo?step=recommender')
     } else if (pipeline.pipeline === 'siloDesign') {
       navigate('/silo')
     }
   }
 
   const nextLabel =
-    pipeline.pipeline === 'muloDesign' ? 'Recommender' : 'Silo Designer'
+    pipeline.pipeline === 'muloDesign' ? 'Multi Loop Designer' : 'Silo Designer'
 
   return (
     <section className={pageSection}>

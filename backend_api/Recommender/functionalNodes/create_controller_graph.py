@@ -135,10 +135,21 @@ def create_controller_graph(messages: OverallState, writer):
     return {"messages": [response], "controller_graph": controller_graph, "controller_json": controller_json}
 
 
+def _parse_controller_structure(controller):
+    if isinstance(controller, dict):
+        return controller
+    if isinstance(controller, str):
+        stripped = controller.strip()
+        if not stripped:
+            raise ValueError("Controller JSON is empty")
+        return json.loads(stripped)
+    raise ValueError(f"Unexpected controller type: {type(controller).__name__}")
+
+
 def find_trimming_parameters(controller, system_identification):
     signal_mapping = {}
     i = 0
-    pid_loops = json.loads(controller)["pid_loops"]
+    pid_loops = _parse_controller_structure(controller)["pid_loops"]
     for loop in pid_loops:
         for controller in loop["controllers"]:
             nodeName = f'node_{i}'

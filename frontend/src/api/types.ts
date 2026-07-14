@@ -36,7 +36,7 @@ export interface StandardizeResponse {
 export interface RecommenderHandoffResponse {
   file_content: string
   chosen_controller: string
-  trimming_params: Record<string, unknown>
+  trimming_params: string[]
   states_inputs: string[]
 }
 
@@ -52,6 +52,8 @@ export interface CaseStudiesResponse {
   python: string[]
   matlab: string[]
   ga_json: string[]
+  mulo: string[]
+  mulo_objectives: Record<string, string>
 }
 
 export interface ArtifactResponse {
@@ -62,6 +64,34 @@ export interface ArtifactResponse {
 export interface RagStatusResponse {
   next_step: 'comparison' | 'review'
   error_message: string
+}
+
+export interface MuloDesignerStateResponse {
+  job_id: string
+  controller_index: number
+  controller_designed: boolean
+  total_loops: number
+  loop_name: string
+  is_complete: boolean
+  equation: string
+  controller_structure: Record<string, unknown>[]
+  case_study: Record<string, unknown>
+  run_config: Record<string, unknown>
+  final_state: Record<string, unknown>
+  modified_code: string
+  modified_controller_structure: Record<string, unknown>[]
+  pid_gains: { Kp: number; Ki: number; Kd: number }
+  pid_gain_bounds: { Kp: number; Ki: number; Kd: number }
+}
+
+export interface MuloSimulateResponse {
+  signal_type: string
+  time: number[]
+  actual: number[]
+  reference: number[]
+  y_label: string
+  unit: string
+  code: string
 }
 
 export type PipelineType = 'siloDesign' | 'muloDesign' | null

@@ -16,6 +16,7 @@ interface AuthContextValue {
   token: string | null
   loading: boolean
   login: (email: string, password: string) => Promise<void>
+  register: (email: string, password: string) => Promise<void>
   logout: () => void
   hasAction: (code: string) => boolean
   canUsePipeline: (pipeline: 'siloDesign' | 'muloDesign') => boolean
@@ -59,13 +60,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void refreshUser()
   }, [refreshUser])
 
-  const login = useCallback(async (email: string, password: string) => {
-    const result = await authApi.login({ email, password })
-    setAuthToken(result.access_token)
-    setToken(result.access_token)
+  const applyToken = useCallback(async (accessToken: string) => {
+    setAuthToken(accessToken)
+    setToken(accessToken)
     const me = await authApi.me()
     setUser(me)
   }, [])
+
+  const login = useCallback(
+    async (email: string, password: string) => {
+      const result = await authApi.login({ email, password })
+      await applyToken(result.access_token)
+    },
+    [applyToken],
+  )
+
+  const register = useCallback(
+    async (email: string, password: string) => {
+      const result = await authApi.register({ email, password })
+      await applyToken(result.access_token)
+    },
+    [applyToken],
+  )
 
   const logout = useCallback(() => {
     clearAuthToken()
@@ -93,12 +109,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       token,
       loading,
       login,
+      register,
       logout,
       hasAction,
       canUsePipeline,
       refreshUser,
     }),
-    [user, token, loading, login, logout, hasAction, canUsePipeline, refreshUser],
+    [user, token, loading, login, register, logout, hasAction, canUsePipeline, refreshUser],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

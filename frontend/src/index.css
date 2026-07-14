@@ -847,6 +847,34 @@
   }
 }
 
+@keyframes admin-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes admin-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.admin-fade-in {
+  animation: admin-fade-in 0.35s ease-out;
+}
+
+.admin-slide-in {
+  animation: admin-slide-in 0.25s ease-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .setup-animate-in,
   .setup-hero__icon-wrap,
@@ -854,7 +882,9 @@
   .processing-card__ring,
   .processing-card__dot,
   .processing-card__core-icon--spin,
-  .setup-ready-banner__icon {
+  .setup-ready-banner__icon,
+  .admin-fade-in,
+  .admin-slide-in {
     animation: none;
   }
 

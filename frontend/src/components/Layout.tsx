@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { Home, LogOut, Users } from 'lucide-react'
+import { Home, LogOut, Shield } from 'lucide-react'
 import { ThemeToggle } from './ThemeToggle'
 import { useAuth } from '../context/AuthContext'
 import { btnBase, btnCompact } from '../lib/classes'
@@ -8,7 +8,6 @@ export function Layout() {
   const location = useLocation()
   const navigate = useNavigate()
   const isHome = location.pathname === '/'
-  const isAdmin = location.pathname.startsWith('/admin')
   const { user, logout } = useAuth()
 
   const handleLogout = () => {
@@ -50,15 +49,11 @@ export function Layout() {
               </Link>
               {user.is_admin && (
                 <Link
-                  to="/admin/users"
-                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                    isAdmin
-                      ? 'bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-primary'
-                      : 'text-muted-text hover:text-foreground hover:bg-surface-hover'
-                  }`}
+                  to="/admin"
+                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-text transition-colors hover:text-foreground hover:bg-surface-hover"
                 >
-                  <Users className="size-4" aria-hidden />
-                  Users
+                  <Shield className="size-4" aria-hidden />
+                  Admin
                 </Link>
               )}
             </nav>

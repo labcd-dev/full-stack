@@ -45,7 +45,7 @@ export async function apiFetch<T>(
     },
   })
 
-  if (response.status === 401 && !path.startsWith('/auth/login')) {
+  if (response.status === 401 && !path.startsWith('/auth/')) {
     clearAuthToken()
   }
 

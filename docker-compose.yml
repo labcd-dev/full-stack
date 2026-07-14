@@ -1,4 +1,21 @@
 services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-labcd}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-labcd}
+      POSTGRES_DB: ${POSTGRES_DB:-labcd}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-labcd} -d ${POSTGRES_DB:-labcd}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
   api:
     build:
       context: .
@@ -10,9 +27,13 @@ services:
     environment:
       - RESULTS_DIR=/app/results
       - UPLOADS_DIR=/app/uploads
+      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER:-labcd}:${POSTGRES_PASSWORD:-labcd}@db:5432/${POSTGRES_DB:-labcd}
     volumes:
       - ./results:/app/results
       - ./uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
 
   frontend:
@@ -24,3 +45,6 @@ services:
     depends_on:
       - api
     restart: unless-stopped
+
+volumes:
+  postgres_data:

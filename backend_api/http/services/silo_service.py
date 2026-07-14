@@ -120,7 +120,11 @@ def _silo_worker(job_id: str) -> None:
         publisher.join(timeout=1.0)
 
 
-def start_silo_job(config: Dict[str, Any], control_objective: str = "") -> str:
+def start_silo_job(
+    config: Dict[str, Any],
+    control_objective: str = "",
+    user_id: int | None = None,
+) -> str:
     runtime_config = build_design_config(
         config,
         control_objective=control_objective,
@@ -135,6 +139,7 @@ def start_silo_job(config: Dict[str, Any], control_objective: str = "") -> str:
             "config": runtime_config,
             "monitor": monitor,
         },
+        user_id=user_id,
     )
     thread = threading.Thread(target=_silo_worker, args=(job.id,), daemon=True)
     job.thread = thread

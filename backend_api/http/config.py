@@ -19,6 +19,16 @@ CORS_ORIGINS = [
     if origin.strip()
 ]
 
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+psycopg://labcd:labcd@localhost:5432/labcd",
+)
+JWT_SECRET = os.getenv("JWT_SECRET", "change-me-in-production")
+JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@example.com")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
+
 DEFAULT_LLM_MODELS = [
     "gpt-oss-120b",
     "gpt-5.5",

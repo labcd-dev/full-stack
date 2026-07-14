@@ -1,6 +1,8 @@
 import { apiFetch, artifactUrl } from './client'
 import type {
+  ActionInfo,
   ArtifactResponse,
+  AuthUser,
   CaseStudiesResponse,
   JobResponse,
   JobStatusResponse,
@@ -11,9 +13,47 @@ import type {
   RecommenderHandoffResponse,
   RegularizeResponse,
   StandardizeResponse,
+  TokenResponse,
   TrimmerArtifactsResponse,
   UploadResponse,
 } from './types'
+
+export const authApi = {
+  login: (body: { email: string; password: string }) =>
+    apiFetch<TokenResponse>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  me: () => apiFetch<AuthUser>('/auth/me'),
+}
+
+export const adminApi = {
+  listActions: () => apiFetch<ActionInfo[]>('/admin/actions'),
+  listUsers: () => apiFetch<AuthUser[]>('/admin/users'),
+  createUser: (body: {
+    email: string
+    password: string
+    is_admin?: boolean
+    actions?: string[]
+  }) =>
+    apiFetch<AuthUser>('/admin/users', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  setUserActions: (userId: number, actions: string[]) =>
+    apiFetch<AuthUser>(`/admin/users/${userId}/actions`, {
+      method: 'PUT',
+      body: JSON.stringify({ actions }),
+    }),
+  updateUser: (
+    userId: number,
+    body: { is_active?: boolean; is_admin?: boolean; password?: string },
+  ) =>
+    apiFetch<AuthUser>(`/admin/users/${userId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+}
 
 export const healthApi = {
   check: () => apiFetch<{ status: string }>('/health'),

@@ -187,6 +187,7 @@ def init_mulo_designer(
     system_identification: Dict[str, Any],
     trimming_result: Dict[str, Any],
     equation: str,
+    user_id: int | None = None,
 ) -> str:
     """Initialize the Mulo designer (LLM constraint estimation) without running GA."""
     normalized_run_config = normalize_run_config(run_config)
@@ -206,6 +207,7 @@ def init_mulo_designer(
             "modified_code": designer.equation,
             "modified_controller_structure": copy.deepcopy(designer.controller_structure),
         },
+        user_id=user_id,
     )
     job.touch(JobStatus.COMPLETED)
     return job.id
@@ -270,6 +272,7 @@ def start_mulo_job(
     system_identification: Dict[str, Any],
     trimming_result: Dict[str, Any],
     equation: str,
+    user_id: int | None = None,
 ) -> str:
     """Legacy one-shot start: initialize designer and immediately run GA."""
     job_id = init_mulo_designer(
@@ -278,6 +281,7 @@ def start_mulo_job(
         system_identification,
         trimming_result,
         equation,
+        user_id=user_id,
     )
     run_mulo_optimization(job_id)
     return job_id

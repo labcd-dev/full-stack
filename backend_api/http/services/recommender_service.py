@@ -44,6 +44,7 @@ def start_recommender_job(
     file_name: str,
     model: str,
     step: str = "initial_run",
+    user_id: int | None = None,
 ) -> str:
     job = job_store.create(
         "recommender",
@@ -56,6 +57,7 @@ def start_recommender_job(
             "graph_config": {"configurable": {"thread_id": ""}},
             "logs": [{"agent_tag": "Equation", "log_history": file_content}],
         },
+        user_id=user_id,
     )
     job.metadata["graph_config"] = {"configurable": {"thread_id": job.id}}
 
@@ -86,6 +88,7 @@ def submit_rag_decision(job_id: str, flags: list[str], model: str) -> str:
             "parent_job_id": job_id,
             "logs": job.metadata.get("logs", []),
         },
+        user_id=job.user_id,
     )
     _start_worker(rag_job, "rag_run", None)
     return rag_job.id

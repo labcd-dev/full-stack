@@ -1,5 +1,6 @@
 import { Gauge, Network } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
 
 type Pipeline = 'siloDesign' | 'muloDesign'
 
@@ -8,6 +9,7 @@ interface PipelineOption {
   title: string
   description: string
   icon: LucideIcon
+  action: string
 }
 
 const PIPELINES: PipelineOption[] = [
@@ -16,12 +18,14 @@ const PIPELINES: PipelineOption[] = [
     title: 'Single Loop',
     description: 'Design one control loop with the Silo Designer pipeline.',
     icon: Gauge,
+    action: 'pipeline:silo',
   },
   {
     id: 'muloDesign',
     title: 'Multi Loop',
     description: 'Coordinate multiple loops via Recommender, Trimmer, and MULO.',
     icon: Network,
+    action: 'pipeline:mulo',
   },
 ]
 
@@ -31,11 +35,23 @@ interface PipelineSelectorProps {
 }
 
 export function PipelineSelector({ value, onChange }: PipelineSelectorProps) {
+  const { hasAction } = useAuth()
+  const available = PIPELINES.filter((option) => hasAction(option.action))
+
+  if (available.length === 0) {
+    return (
+      <p className="rounded-lg border border-border bg-surface-muted px-3 py-3 text-sm text-muted-text">
+        No pipeline actions are assigned to your account. Ask an admin to grant Single Loop and/or
+        Multi Loop access.
+      </p>
+    )
+  }
+
   return (
     <fieldset className="pipeline-selector">
       <legend className="pipeline-selector__legend">Design pipeline</legend>
       <div className="pipeline-selector__grid">
-        {PIPELINES.map((option) => {
+        {available.map((option) => {
           const Icon = option.icon
           const isSelected = value === option.id
 

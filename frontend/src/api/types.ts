@@ -106,3 +106,23 @@ export interface StreamEvent {
   error?: string
   metadata?: Record<string, unknown>
 }
+
+export interface AuthUser {
+  id: number
+  email: string
+  is_admin: boolean
+  is_active: boolean
+  actions: string[]
+  created_at: string
+}
+
+export interface ActionInfo {
+  code: string
+  description: string
+}
+
+export interface TokenResponse {
+  access_token: string
+  token_type: string
+}
+

@@ -2,28 +2,39 @@
 
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 
+from backend_api.db.models import User
 from backend_api.http.config import RESULTS_DIR
+from backend_api.http.dependencies import assert_job_access, get_current_user
 from backend_api.http.schemas.common import ArtifactResponse, JobStatusResponse
-from backend_api.http.services.job_store import JobStatus, job_store
+from backend_api.http.services.job_store import job_store
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 
 @router.get("/{job_id}", response_model=JobStatusResponse)
-def get_job_status(job_id: str) -> JobStatusResponse:
+def get_job_status(
+    job_id: str,
+    user: User = Depends(get_current_user),
+) -> JobStatusResponse:
     try:
         job = job_store.get(job_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Job not found") from exc
+    assert_job_access(job, user)
     return _job_status_response(job)
 
 
 @router.post("/{job_id}/cancel", response_model=JobStatusResponse)
-def cancel_job(job_id: str) -> JobStatusResponse:
+def cancel_job(
+    job_id: str,
+    user: User = Depends(get_current_user),
+) -> JobStatusResponse:
     try:
+        job = job_store.get(job_id)
+        assert_job_access(job, user)
         job = job_store.request_cancel(job_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Job not found") from exc
@@ -43,11 +54,15 @@ def _job_status_response(job) -> JobStatusResponse:
 
 
 @router.get("/{job_id}/results", response_model=ArtifactResponse)
-def get_job_results(job_id: str) -> ArtifactResponse:
+def get_job_results(
+    job_id: str,
+    user: User = Depends(get_current_user),
+) -> ArtifactResponse:
     try:
         job = job_store.get(job_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Job not found") from exc
+    assert_job_access(job, user)
 
     artifacts = {}
     if job.module == "trimmer":
@@ -66,11 +81,16 @@ def get_job_results(job_id: str) -> ArtifactResponse:
 
 
 @router.get("/{job_id}/artifacts/{filename}")
-def download_artifact(job_id: str, filename: str):
+def download_artifact(
+    job_id: str,
+    filename: str,
+    user: User = Depends(get_current_user),
+):
     try:
-        job_store.get(job_id)
+        job = job_store.get(job_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Job not found") from exc
+    assert_job_access(job, user)
 
     file_path = Path(RESULTS_DIR) / filename
     if not file_path.exists():

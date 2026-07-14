@@ -3,9 +3,11 @@
 import os
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from backend_api.db.models import User
 from backend_api.http.config import CASE_STUDIES_DIR
+from backend_api.http.dependencies import require_action
 from backend_api.http.services.mulo_service import (
     get_mulo_default_objectives,
     list_mulo_case_studies,
@@ -17,7 +19,9 @@ router = APIRouter(prefix="/case-studies", tags=["case-studies"])
 
 
 @router.get("")
-def list_case_studies() -> dict:
+def list_case_studies(
+    _: User = Depends(require_action("module:case_studies")),
+) -> dict:
     py_dir = CASE_STUDIES_DIR / "py"
     m_dir = CASE_STUDIES_DIR / "m"
     ga_dir = Path(__file__).resolve().parents[2] / "MuloDesigner" / "GaAgent" / "case_studies" / "json"
@@ -36,7 +40,10 @@ def list_case_studies() -> dict:
 
 
 @router.get("/mulo/{name}")
-def get_mulo_case_study(name: str) -> dict:
+def get_mulo_case_study(
+    name: str,
+    _: User = Depends(require_action("module:case_studies")),
+) -> dict:
     try:
         return load_mulo_case_study(name)
     except Exception as exc:

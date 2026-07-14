@@ -1,8 +1,10 @@
 """MuloDesigner workflow routes."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
+from backend_api.db.models import User
+from backend_api.http.dependencies import assert_job_access, require_action
 from backend_api.http.schemas.common import JobResponse
 from backend_api.http.schemas.mulo import (
     MuloConfigureRequest,
@@ -35,8 +37,23 @@ def _job_response(job_id: str) -> JobResponse:
     return JobResponse(job_id=job_id, module=job.module, status=job.status.value)
 
 
+def _mulo_user(user: User = Depends(require_action("module:mulo"))) -> User:
+    if not user.has_action("pipeline:mulo"):
+        raise HTTPException(status_code=403, detail="Missing required action: pipeline:mulo")
+    return user
+
+
+def _owned_job(job_id: str, user: User):
+    job = job_store.get(job_id)
+    assert_job_access(job, user)
+    return job
+
+
 @router.post("/init", response_model=JobResponse)
-def init_mulo(request: MuloInitRequest) -> JobResponse:
+def init_mulo(
+    request: MuloInitRequest,
+    user: User = Depends(_mulo_user),
+) -> JobResponse:
     try:
         job_id = init_mulo_designer(
             request.run_config,
@@ -44,6 +61,7 @@ def init_mulo(request: MuloInitRequest) -> JobResponse:
             request.system_identification,
             request.trimming_result,
             request.equation,
+            user_id=user.id,
         )
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -51,7 +69,10 @@ def init_mulo(request: MuloInitRequest) -> JobResponse:
 
 
 @router.post("/start", response_model=JobResponse)
-def start_mulo(request: MuloStartRequest) -> JobResponse:
+def start_mulo(
+    request: MuloStartRequest,
+    user: User = Depends(_mulo_user),
+) -> JobResponse:
     try:
         job_id = start_mulo_job(
             request.run_config,
@@ -59,6 +80,7 @@ def start_mulo(request: MuloStartRequest) -> JobResponse:
             request.system_identification,
             request.trimming_result,
             request.equation,
+            user_id=user.id,
         )
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -66,8 +88,13 @@ def start_mulo(request: MuloStartRequest) -> JobResponse:
 
 
 @router.post("/{job_id}/configure", response_model=JobResponse)
-def configure_mulo(job_id: str, request: MuloConfigureRequest) -> JobResponse:
+def configure_mulo(
+    job_id: str,
+    request: MuloConfigureRequest,
+    user: User = Depends(_mulo_user),
+) -> JobResponse:
     try:
+        _owned_job(job_id, user)
         configure_mulo_job(job_id, request.case_study, request.controller_structure)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Job not found") from exc
@@ -77,8 +104,12 @@ def configure_mulo(job_id: str, request: MuloConfigureRequest) -> JobResponse:
 
 
 @router.post("/{job_id}/run", response_model=JobResponse)
-def run_mulo(job_id: str) -> JobResponse:
+def run_mulo(
+    job_id: str,
+    user: User = Depends(_mulo_user),
+) -> JobResponse:
     try:
+        _owned_job(job_id, user)
         run_mulo_optimization(job_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Job not found") from exc
@@ -86,8 +117,13 @@ def run_mulo(job_id: str) -> JobResponse:
 
 
 @router.post("/{job_id}/scratchpad", response_model=JobResponse)
-def update_scratchpad(job_id: str, request: MuloScratchpadRequest) -> JobResponse:
+def update_scratchpad(
+    job_id: str,
+    request: MuloScratchpadRequest,
+    user: User = Depends(_mulo_user),
+) -> JobResponse:
     try:
+        _owned_job(job_id, user)
         update_mulo_scratchpad(
             job_id,
             request.modified_code,
@@ -99,8 +135,13 @@ def update_scratchpad(job_id: str, request: MuloScratchpadRequest) -> JobRespons
 
 
 @router.post("/{job_id}/continue", response_model=JobResponse)
-def continue_mulo(job_id: str, request: MuloContinueRequest) -> JobResponse:
+def continue_mulo(
+    job_id: str,
+    request: MuloContinueRequest,
+    user: User = Depends(_mulo_user),
+) -> JobResponse:
     try:
+        _owned_job(job_id, user)
         continue_mulo_loop(job_id, request.equation, request.controller_structure)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Job not found") from exc
@@ -110,16 +151,25 @@ def continue_mulo(job_id: str, request: MuloContinueRequest) -> JobResponse:
 
 
 @router.get("/{job_id}/state", response_model=MuloDesignerStateResponse)
-def mulo_designer_state(job_id: str) -> MuloDesignerStateResponse:
+def mulo_designer_state(
+    job_id: str,
+    user: User = Depends(_mulo_user),
+) -> MuloDesignerStateResponse:
     try:
+        _owned_job(job_id, user)
         return MuloDesignerStateResponse(**get_mulo_designer_state(job_id))
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Job not found") from exc
 
 
 @router.post("/{job_id}/simulate")
-def mulo_simulate(job_id: str, request: MuloSimulateRequest) -> dict:
+def mulo_simulate(
+    job_id: str,
+    request: MuloSimulateRequest,
+    user: User = Depends(_mulo_user),
+) -> dict:
     try:
+        _owned_job(job_id, user)
         return simulate_mulo_response(
             job_id,
             request.kp,
@@ -134,17 +184,24 @@ def mulo_simulate(job_id: str, request: MuloSimulateRequest) -> dict:
 
 
 @router.get("/{job_id}/stream")
-def stream_mulo(job_id: str) -> StreamingResponse:
+def stream_mulo(
+    job_id: str,
+    user: User = Depends(_mulo_user),
+) -> StreamingResponse:
     try:
-        job_store.get(job_id)
+        _owned_job(job_id, user)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Job not found") from exc
     return sse_response(job_id)
 
 
 @router.get("/{job_id}/plot-data")
-def mulo_plot_data(job_id: str) -> dict:
+def mulo_plot_data(
+    job_id: str,
+    user: User = Depends(_mulo_user),
+) -> dict:
     try:
+        _owned_job(job_id, user)
         return get_mulo_plot_data(job_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Job not found") from exc

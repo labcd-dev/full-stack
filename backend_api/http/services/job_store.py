@@ -44,6 +44,7 @@ class Job:
     metadata: Dict[str, Any] = field(default_factory=dict)
     error: Optional[str] = None
     cancel_requested: bool = False
+    user_id: Optional[int] = None
     thread: Optional[threading.Thread] = field(default=None, repr=False)
 
     def touch(self, status: Optional[JobStatus] = None) -> None:
@@ -57,9 +58,14 @@ class JobStore:
         self._jobs: Dict[str, Job] = {}
         self._lock = threading.Lock()
 
-    def create(self, module: str, metadata: Optional[Dict[str, Any]] = None) -> Job:
+    def create(
+        self,
+        module: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        user_id: Optional[int] = None,
+    ) -> Job:
         job_id = str(uuid.uuid4())
-        job = Job(id=job_id, module=module, metadata=metadata or {})
+        job = Job(id=job_id, module=module, metadata=metadata or {}, user_id=user_id)
         with self._lock:
             self._jobs[job_id] = job
         return job

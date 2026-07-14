@@ -64,6 +64,7 @@ def start_trimmer_job(
     file_name: str,
     model: str,
     trimming_params: Dict[str, Any],
+    user_id: int | None = None,
 ) -> str:
     logger = _create_logger(file_name)
     initial_state = build_trimmer_initial_state(
@@ -85,6 +86,7 @@ def start_trimmer_job(
             "ui_inputs": {},
             "logs": [],
         },
+        user_id=user_id,
     )
     thread = threading.Thread(target=_trimmer_worker, args=(job.id,), daemon=True)
     job.thread = thread

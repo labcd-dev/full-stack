@@ -1,0 +1,177 @@
+import { useEffect, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, Pencil, Trash2 } from 'lucide-react'
+import { projectsApi } from '../api/endpoints'
+import type { ProjectDetail } from '../api/types'
+import { CodePreview } from '../components/CodePreview'
+import { ProjectResultsView } from '../components/ProjectResultsView'
+import { StatusMessage } from '../components/StatusMessage'
+import {
+  btnBase,
+  btnCompact,
+  btnPrimary,
+  cardPanel,
+  fieldInput,
+  fieldLabel,
+  pageIntro,
+  pageSection,
+} from '../lib/classes'
+import { pipelineLabel, statusBadgeClass } from '../lib/projectLabels'
+
+export function ProjectDetailPage() {
+  const { projectId } = useParams()
+  const navigate = useNavigate()
+  const id = Number(projectId)
+  const [project, setProject] = useState<ProjectDetail | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [renaming, setRenaming] = useState(false)
+  const [title, setTitle] = useState('')
+
+  useEffect(() => {
+    if (!Number.isFinite(id)) {
+      setError('Invalid project id')
+      setLoading(false)
+      return
+    }
+    const load = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const detail = await projectsApi.get(id)
+        setProject(detail)
+        setTitle(detail.title)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load project')
+      } finally {
+        setLoading(false)
+      }
+    }
+    void load()
+  }, [id])
+
+  const saveTitle = async () => {
+    if (!project || !title.trim()) return
+    try {
+      const updated = await projectsApi.update(project.id, { title: title.trim() })
+      setProject(updated)
+      setRenaming(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to rename project')
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!project) return
+    if (!window.confirm('Delete this project? This cannot be undone.')) return
+    try {
+      await projectsApi.delete(project.id)
+      navigate('/projects', { replace: true })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete project')
+    }
+  }
+
+  if (loading) {
+    return <p className="text-muted-text">Loading project…</p>
+  }
+
+  if (!project) {
+    return (
+      <section className={pageSection}>
+        {error && <StatusMessage type="error" message={error} />}
+        <Link to="/projects" className={btnBase}>
+          <ArrowLeft className="size-4" />
+          Back to projects
+        </Link>
+      </section>
+    )
+  }
+
+  return (
+    <section className={pageSection}>
+      <Link to="/projects" className={`${btnBase} ${btnCompact} w-fit`}>
+        <ArrowLeft className="size-3.5" />
+        All projects
+      </Link>
+
+      <header className="space-y-3">
+        {renaming ? (
+          <label className={fieldLabel}>
+            <span>Title</span>
+            <div className="flex flex-wrap gap-2">
+              <input
+                className={`${fieldInput} flex-1 min-w-[200px]`}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+              />
+              <button type="button" className={btnPrimary} onClick={() => void saveTitle()}>
+                Save
+              </button>
+              <button type="button" className={btnBase} onClick={() => setRenaming(false)}>
+                Cancel
+              </button>
+            </div>
+          </label>
+        ) : (
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-2">
+              <h2 className="m-0 text-2xl font-semibold tracking-tight text-foreground">
+                {project.title}
+              </h2>
+              <p className={`${pageIntro} m-0`}>
+                {pipelineLabel(project.pipeline_type)} · Updated{' '}
+                {new Date(project.updated_at).toLocaleString()}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <span className={statusBadgeClass(project.status)}>{project.status}</span>
+                {project.job_id ? (
+                  <span className="rounded-md bg-surface-muted px-2 py-0.5 text-xs text-muted-text font-mono">
+                    job {project.job_id.slice(0, 8)}…
+                  </span>
+                ) : null}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button type="button" className={btnBase} onClick={() => setRenaming(true)}>
+                <Pencil className="size-3.5" />
+                Rename
+              </button>
+              <button type="button" className={btnBase} onClick={() => void handleDelete()}>
+                <Trash2 className="size-3.5" />
+                Delete
+              </button>
+            </div>
+          </div>
+        )}
+      </header>
+
+      {error && <StatusMessage type="error" message={error} />}
+
+      {project.control_objective ? (
+        <div className={cardPanel}>
+          <h3 className="m-0 text-sm font-semibold uppercase tracking-wide text-muted">
+            Control objective
+          </h3>
+          <p className="mt-2 mb-0 text-foreground whitespace-pre-wrap">{project.control_objective}</p>
+        </div>
+      ) : null}
+
+      <div className={cardPanel}>
+        <h3 className="m-0 mb-2 text-lg font-semibold text-foreground">Uploaded file</h3>
+        <p className="mt-0 mb-3 text-sm text-muted-text">
+          {project.file_name || 'Untitled'} ({project.file_type})
+        </p>
+        <CodePreview value={project.file_content || '# No file content stored'} readOnly />
+      </div>
+
+      <div className={cardPanel}>
+        <h3 className="m-0 mb-2 text-lg font-semibold text-foreground">Results</h3>
+        <p className="mt-0 mb-3 text-sm text-muted-text">
+          Snapshot saved when the design job finished (or last update).
+        </p>
+        <ProjectResultsView pipelineType={project.pipeline_type} results={project.results} />
+      </div>
+    </section>
+  )
+}

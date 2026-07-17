@@ -107,9 +107,14 @@ export interface StreamEvent {
   metadata?: Record<string, unknown>
 }
 
+export type ThemeMode = 'light' | 'dark' | 'system'
+
 export interface AuthUser {
   id: number
   email: string
+  display_name: string | null
+  avatar_url: string | null
+  theme: ThemeMode
   is_admin: boolean
   is_active: boolean
   actions: string[]
@@ -124,5 +129,29 @@ export interface ActionInfo {
 export interface TokenResponse {
   access_token: string
   token_type: string
+}
+
+export type ProjectPipelineType = 'siloDesign' | 'muloDesign'
+export type ProjectStatus = 'draft' | 'running' | 'completed' | 'failed' | 'cancelled'
+
+export interface ProjectSummary {
+  id: number
+  user_id: number
+  owner_email?: string | null
+  title: string
+  pipeline_type: ProjectPipelineType
+  status: ProjectStatus
+  file_name: string
+  file_type: string
+  has_results: boolean
+  job_id?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ProjectDetail extends ProjectSummary {
+  file_content: string
+  control_objective?: string | null
+  results?: Record<string, unknown> | null
 }
 

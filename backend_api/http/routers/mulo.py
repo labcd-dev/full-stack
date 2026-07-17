@@ -62,6 +62,9 @@ def init_mulo(
             request.trimming_result,
             request.equation,
             user_id=user.id,
+            project_id=request.project_id,
+            file_name=request.file_name or "",
+            file_type=request.file_type or "python",
         )
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -81,6 +84,9 @@ def start_mulo(
             request.trimming_result,
             request.equation,
             user_id=user.id,
+            project_id=request.project_id,
+            file_name=request.file_name or "",
+            file_type=request.file_type or "python",
         )
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

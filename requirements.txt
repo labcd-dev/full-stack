@@ -59,6 +59,7 @@ multidict==6.7.1
 narwhals==2.20.0
 numpy==2.4.4
 numpy-typing-compat==20251206.2.4
+oct2py==6.0.3
 openai==2.36.0
 optype==0.17.1
 orjson==3.11.8

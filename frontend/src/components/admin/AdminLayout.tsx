@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, Navigate, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
+  FolderKanban,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -15,6 +16,7 @@ import { btnBase, btnCompact } from '../../lib/classes'
 const navItems = [
   { to: '/admin', end: true, label: 'Overview', icon: LayoutDashboard },
   { to: '/admin/users', end: false, label: 'Users', icon: Users },
+  { to: '/admin/projects', end: false, label: 'Projects', icon: FolderKanban },
 ] as const
 
 export function AdminLayout() {

@@ -24,29 +24,61 @@ wheels/
 venv/
 env/
 ENV/
-.venv
+.venv/
 
-# IDE
+# IDE / editor
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
+*.code-workspace
 
 # Logs
 logs/
+.logs/
 *.log
 
-# Results
-results/
+# Runtime / generated output (keep directory placeholders)
+results/*
+!results/.gitkeep
+uploads/*
+!uploads/.gitkeep
+!uploads/avatars/
+uploads/avatars/*
+!uploads/avatars/.gitkeep
+test_dynamics/*
+!test_dynamics/.gitkeep
 
 # OS
 .DS_Store
 Thumbs.db
+Desktop.ini
 
-# Environment
+# Environment / secrets
 .env
+.env.local
+.env.*.local
+!.env.example
 
-# Generated images
+# Node / frontend build
+node_modules/
+frontend/dist/
+frontend/dist-ssr/
+*.local
+
+# Generated images / graphs
 workflow_graph.png
 *_response_langraph.png
+
+# Coverage / test caches
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.cache/
+
+# Jupyter
+.ipynb_checkpoints/

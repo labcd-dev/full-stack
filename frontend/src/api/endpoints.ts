@@ -9,6 +9,8 @@ import type {
   ModelsResponse,
   MuloDesignerStateResponse,
   MuloSimulateResponse,
+  ProjectDetail,
+  ProjectSummary,
   RagStatusResponse,
   RecommenderHandoffResponse,
   RegularizeResponse,
@@ -30,6 +32,27 @@ export const authApi = {
       body: JSON.stringify(body),
     }),
   me: () => apiFetch<AuthUser>('/auth/me'),
+  updateProfile: (body: {
+    display_name?: string | null
+    email?: string
+    theme?: AuthUser['theme']
+    current_password?: string
+  }) =>
+    apiFetch<AuthUser>('/auth/me', {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  changePassword: (body: { current_password: string; new_password: string }) =>
+    apiFetch<void>('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  uploadAvatar: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return apiFetch<AuthUser>('/auth/me/avatar', { method: 'POST', body: form })
+  },
+  removeAvatar: () => apiFetch<AuthUser>('/auth/me/avatar', { method: 'DELETE' }),
 }
 
 export const adminApi = {
@@ -58,6 +81,58 @@ export const adminApi = {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
+  listProjects: (params?: { user_id?: number; pipeline_type?: string }) => {
+    const query = new URLSearchParams()
+    if (params?.user_id != null) query.set('user_id', String(params.user_id))
+    if (params?.pipeline_type) query.set('pipeline_type', params.pipeline_type)
+    const suffix = query.toString() ? `?${query}` : ''
+    return apiFetch<ProjectSummary[]>(`/admin/projects${suffix}`)
+  },
+  getProject: (projectId: number) =>
+    apiFetch<ProjectDetail>(`/admin/projects/${projectId}`),
+  updateProject: (
+    projectId: number,
+    body: { title?: string; status?: string },
+  ) =>
+    apiFetch<ProjectDetail>(`/admin/projects/${projectId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  deleteProject: (projectId: number) =>
+    apiFetch<void>(`/admin/projects/${projectId}`, { method: 'DELETE' }),
+}
+
+export const projectsApi = {
+  list: () => apiFetch<ProjectSummary[]>('/projects'),
+  get: (projectId: number) => apiFetch<ProjectDetail>(`/projects/${projectId}`),
+  create: (body: {
+    title?: string
+    pipeline_type: 'siloDesign' | 'muloDesign'
+    file_name?: string
+    file_type?: string
+    file_content?: string
+    control_objective?: string
+  }) =>
+    apiFetch<ProjectDetail>('/projects', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  update: (
+    projectId: number,
+    body: {
+      title?: string
+      status?: string
+      control_objective?: string
+      job_id?: string
+      results?: Record<string, unknown>
+    },
+  ) =>
+    apiFetch<ProjectDetail>(`/projects/${projectId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  delete: (projectId: number) =>
+    apiFetch<void>(`/projects/${projectId}`, { method: 'DELETE' }),
 }
 
 export const healthApi = {
@@ -151,7 +226,11 @@ export const trimmerApi = {
 }
 
 export const siloApi = {
-  start: (body: { config: Record<string, unknown>; control_objective?: string }) =>
+  start: (body: {
+    config: Record<string, unknown>
+    control_objective?: string
+    project_id?: number | null
+  }) =>
     apiFetch<JobResponse>('/silo/start', {
       method: 'POST',
       body: JSON.stringify(body),
@@ -168,6 +247,9 @@ export const muloApi = {
     system_identification: Record<string, unknown>
     trimming_result: Record<string, unknown>
     equation: string
+    project_id?: number | null
+    file_name?: string
+    file_type?: string
   }) =>
     apiFetch<JobResponse>('/mulo/init', {
       method: 'POST',
@@ -180,6 +262,9 @@ export const muloApi = {
     system_identification: Record<string, unknown>
     trimming_result: Record<string, unknown>
     equation: string
+    project_id?: number | null
+    file_name?: string
+    file_type?: string
   }) =>
     apiFetch<JobResponse>('/mulo/start', {
       method: 'POST',

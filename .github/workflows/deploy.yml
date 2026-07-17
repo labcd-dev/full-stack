@@ -1,4 +1,8 @@
-name: Deploy ACL App
+name: Deploy ACL App (legacy Streamlit)
+
+# Deploys the legacy Streamlit Docker image (root Dockerfile).
+# Primary stack is FastAPI + React via docker-compose.yml — update this
+# workflow when production moves off Streamlit.
 
 on:
   push:

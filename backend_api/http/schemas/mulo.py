@@ -5,20 +5,26 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
-class MuloStartRequest(BaseModel):
-    run_config: Dict[str, Any]
-    controller_structure: List[Dict[str, Any]]
-    system_identification: Dict[str, Any]
-    trimming_result: Dict[str, Any]
-    equation: str
-
-
 class MuloInitRequest(BaseModel):
     run_config: Dict[str, Any]
     controller_structure: List[Dict[str, Any]]
     system_identification: Dict[str, Any]
     trimming_result: Dict[str, Any]
     equation: str
+    project_id: Optional[int] = None
+    file_name: Optional[str] = None
+    file_type: Optional[str] = None
+
+
+class MuloStartRequest(BaseModel):
+    run_config: Dict[str, Any]
+    controller_structure: List[Dict[str, Any]]
+    system_identification: Dict[str, Any]
+    trimming_result: Dict[str, Any]
+    equation: str
+    project_id: Optional[int] = None
+    file_name: Optional[str] = None
+    file_type: Optional[str] = None
 
 
 class MuloConfigureRequest(BaseModel):

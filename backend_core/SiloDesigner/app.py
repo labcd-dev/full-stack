@@ -235,9 +235,9 @@ def run_design_with_monitoring(config: Dict, monitor: DesignMonitor):
             kwargs.get('max_iter', 10)
         )
 
-        # NEW: Filter out GA-specific keys before passing to initialize_state
-        ga_keys = {'enable_ga', 'ga_config'}
-        filtered_kwargs = {k: v for k, v in kwargs.items() if k not in ga_keys}
+        # Filter out keys that are not accepted by initialize_state
+        excluded_init_keys = {'enable_ga', 'ga_config', 'file_name'}
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k not in excluded_init_keys}
 
         init_kwargs = {
             **filtered_kwargs,

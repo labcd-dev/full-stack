@@ -21,7 +21,12 @@ def start_silo(
 ) -> JobResponse:
     if not user.has_action("pipeline:silo"):
         raise HTTPException(status_code=403, detail="Missing required action: pipeline:silo")
-    job_id = start_silo_job(request.config, request.control_objective or "", user_id=user.id)
+    job_id = start_silo_job(
+        request.config,
+        request.control_objective or "",
+        user_id=user.id,
+        project_id=request.project_id,
+    )
     job = job_store.get(job_id)
     return JobResponse(job_id=job_id, module=job.module, status=job.status.value)
 

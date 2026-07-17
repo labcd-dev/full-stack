@@ -1,6 +1,6 @@
-"""Admin routes for managing users and actions."""
+"""Admin routes for managing users, actions, and projects."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from backend_api.db.models import Action, User
@@ -13,6 +13,8 @@ from backend_api.http.schemas.auth import (
     UpdateUserRequest,
     UserOut,
 )
+from backend_api.http.schemas.projects import ProjectDetail, ProjectSummary, ProjectUpdateRequest
+from backend_api.http.services import project_service
 from backend_api.http.services.auth_service import (
     create_user,
     get_user_by_email,
@@ -20,19 +22,9 @@ from backend_api.http.services.auth_service import (
     hash_password,
     set_user_actions,
 )
+from backend_api.http.services.profile_service import user_out
 
 router = APIRouter(prefix="/admin", tags=["admin"])
-
-
-def _user_out(user: User) -> UserOut:
-    return UserOut(
-        id=user.id,
-        email=user.email,
-        is_admin=user.is_admin,
-        is_active=user.is_active,
-        actions=user.action_codes(),
-        created_at=user.created_at,
-    )
 
 
 @router.get("/actions", response_model=list[ActionOut])
@@ -50,7 +42,7 @@ def list_users(
     db: Session = Depends(get_db),
 ) -> list[UserOut]:
     users = db.query(User).order_by(User.email).all()
-    return [_user_out(user) for user in users]
+    return [user_out(user) for user in users]
 
 
 @router.post("/users", response_model=UserOut, status_code=status.HTTP_201_CREATED)
@@ -68,7 +60,7 @@ def create_user_endpoint(
         action_codes=request.actions,
         is_admin=request.is_admin,
     )
-    return _user_out(user)
+    return user_out(user)
 
 
 @router.put("/users/{user_id}/actions", response_model=UserOut)
@@ -82,7 +74,7 @@ def update_user_actions(
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     user = set_user_actions(db, user, request.actions)
-    return _user_out(user)
+    return user_out(user)
 
 
 @router.patch("/users/{user_id}", response_model=UserOut)
@@ -104,4 +96,74 @@ def update_user(
     db.add(user)
     db.commit()
     db.refresh(user)
-    return _user_out(user)
+    return user_out(user)
+
+
+@router.get("/projects", response_model=list[ProjectSummary])
+def list_all_projects(
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+    user_id: int | None = Query(default=None),
+    pipeline_type: str | None = Query(default=None),
+) -> list[ProjectSummary]:
+    projects = project_service.list_all_projects(
+        db,
+        user_id=user_id,
+        pipeline_type=pipeline_type,
+    )
+    return [
+        ProjectSummary(**project_service.project_to_summary(p, include_owner=True))
+        for p in projects
+    ]
+
+
+@router.get("/projects/{project_id}", response_model=ProjectDetail)
+def get_any_project(
+    project_id: int,
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> ProjectDetail:
+    project = project_service.get_project(db, project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return ProjectDetail(**project_service.project_to_detail(project, include_owner=True))
+
+
+@router.patch("/projects/{project_id}", response_model=ProjectDetail)
+def update_any_project(
+    project_id: int,
+    request: ProjectUpdateRequest,
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> ProjectDetail:
+    project = project_service.get_project(db, project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    try:
+        project = project_service.update_project(
+            db,
+            project,
+            title=request.title,
+            status=request.status,
+            control_objective=request.control_objective,
+            file_name=request.file_name,
+            file_type=request.file_type,
+            file_content=request.file_content,
+            job_id=request.job_id,
+            results=request.results,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return ProjectDetail(**project_service.project_to_detail(project, include_owner=True))
+
+
+@router.delete("/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_any_project(
+    project_id: int,
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> None:
+    project = project_service.get_project(db, project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    project_service.delete_project(db, project)

@@ -79,12 +79,14 @@ export function SiloPage() {
       const config = buildSiloStartConfig(advancedConfig, {
         llm_model: pipeline.model,
         file_content: pipeline.fileContent,
+        file_name: pipeline.fileName,
         file_type: pipeline.fileType === 'matlab' ? 'MATLAB/Octave (.m)' : 'Python (.py)',
       })
 
       const job = await siloApi.start({
         config,
         control_objective: objective,
+        project_id: pipeline.projectId,
       })
       pipeline.setSiloJobId(job.job_id)
       setStarted(true)

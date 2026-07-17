@@ -29,6 +29,19 @@ except ImportError:
 np.random.seed(42)
 
 
+def _dynamics_source_label(
+    file_path: Optional[str],
+    file_content: Optional[str] = None,
+    default: str = "uploaded dynamics",
+) -> str:
+    """Human-readable label for uploaded dynamics when no file path exists."""
+    if file_path:
+        return os.path.basename(file_path)
+    if file_content:
+        return default
+    return default
+
+
 class GeneralDynamicalSystem:
     """Base class for dynamical systems with arbitrary number of states"""
 
@@ -179,7 +192,10 @@ class CustomDynamicalSystem(GeneralDynamicalSystem):
 
             self.dynamics_func = exec_globals["dynamics"]
         else:
-            # Fallback to existing file path logic
+            if not self.dynamics_file_path:
+                raise ValueError(
+                    "Dynamics file path or file_content is required for custom Python systems."
+                )
             spec = importlib.util.spec_from_file_location("user_dynamics", self.dynamics_file_path)
             self.dynamics_module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(self.dynamics_module)
@@ -499,7 +515,10 @@ class OctaveSISOSystem(GeneralDynamicalSystem):
 
         # Set system identification
         self.name = f"Octave System ({matlab_func_name})"  # Renamed for MIMO clarity
-        self.description = f"Octave-based system with {num_states} states and {num_inputs} inputs from {os.path.basename(matlab_file_path)}"
+        self.description = (
+            f"Octave-based system with {num_states} states and {num_inputs} inputs "
+            f"from {_dynamics_source_label(matlab_file_path, file_content, matlab_func_name)}"
+        )
 
         # Generate generic state and control names
         self.state_names = [f'x{i + 1}' for i in range(num_states)]
@@ -547,9 +566,13 @@ class OctaveSISOSystem(GeneralDynamicalSystem):
 
             if self.file_content is not None:
                 content = self.file_content
-            else:
+            elif self.original_matlab_file_path:
                 with open(self.original_matlab_file_path, 'r') as src:
                     content = src.read()
+            else:
+                raise ValueError(
+                    "MATLAB/Octave dynamics require either file_content or a file path."
+                )
 
             with open(self.matlab_file_path, 'w') as dst:
                 dst.write(content)
@@ -2216,20 +2239,37 @@ def create_system(system_name: str, scenario=None, custom_dynamics_path: Optiona
     """Factory function to create appropriate system"""
     if system_name == "custom" and (custom_dynamics_path or file_content is not None):
         if file_type == "MATLAB/Octave (.m)":
+            if not OCTAVE_AVAILABLE:
+                raise ImportError(
+                    "oct2py is required for MATLAB/Octave (.m) dynamics. "
+                    "Install it with: pip install oct2py  (and ensure GNU Octave is installed)."
+                )
             if not matlab_func_name:
                 raise ValueError("MATLAB function name required for .m files")
 
             # Auto-detect num_states if not provided
             if not num_states:
-                from oct2py import Oct2Py
                 oct = Oct2Py()
                 try:
                     # Try to infer from the file, passing num_inputs for correct test_u
-                    num_states = _detect_matlab_states(oct, custom_dynamics_path, matlab_func_name, num_inputs)
+                    num_states = _detect_matlab_states(
+                        oct,
+                        custom_dynamics_path,
+                        matlab_func_name,
+                        num_inputs,
+                        file_content=file_content,
+                    )
                 finally:
                     oct.exit()
 
-            return OctaveSISOSystem(custom_dynamics_path, matlab_func_name, num_states, scenario, num_inputs)
+            return OctaveSISOSystem(
+                custom_dynamics_path,
+                matlab_func_name,
+                num_states,
+                scenario,
+                num_inputs,
+                file_content=file_content,
+            )
         else:
             return CustomDynamicalSystem(custom_dynamics_path, scenario, num_inputs, file_content)
     elif system_name == "inverted_pendulum":
@@ -2244,11 +2284,16 @@ def create_system(system_name: str, scenario=None, custom_dynamics_path: Optiona
         return DCMotorPositionControl(scenario)
 
 
-def _detect_matlab_states(oct, matlab_file_path: str, func_name: str, num_inputs: int = 1) -> int:
+def _detect_matlab_states(
+    oct,
+    matlab_file_path: Optional[str],
+    func_name: str,
+    num_inputs: int = 1,
+    file_content: Optional[str] = None,
+) -> int:
     """Auto-detect number of states from MATLAB function"""
-    import os
-    import tempfile
     import shutil
+    import tempfile
 
     # Setup temporary directory
     temp_dir = tempfile.mkdtemp()
@@ -2256,9 +2301,16 @@ def _detect_matlab_states(oct, matlab_file_path: str, func_name: str, num_inputs
     temp_matlab_path = os.path.join(temp_dir, matlab_filename)
 
     try:
-        # Copy file to temp directory
-        with open(matlab_file_path, 'r') as src:
-            content = src.read()
+        if file_content is not None:
+            content = file_content
+        elif matlab_file_path:
+            with open(matlab_file_path, 'r') as src:
+                content = src.read()
+        else:
+            raise ValueError(
+                "MATLAB/Octave dynamics require either file_content or a file path."
+            )
+
         with open(temp_matlab_path, 'w') as dst:
             dst.write(content)
 

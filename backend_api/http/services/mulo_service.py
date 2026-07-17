@@ -28,6 +28,7 @@ from backend_api.MuloDesigner.simulation_utils import simulate_system_response
 from backend_api.common.serialization import make_serializable
 from backend_api.http.config import PROJECT_ROOT
 from backend_api.http.services.job_store import JobStatus, job_store
+from backend_api.http.services.project_service import link_or_create_for_job, sync_project_from_job
 
 MULO_INPUTS_DIR = PROJECT_ROOT / "frontend_streamlit" / "inputs"
 MULO_REQUIRED_FILES = (
@@ -166,10 +167,27 @@ def _mulo_worker(job_id: str) -> None:
         job.metadata["modified_controller_structure"] = make_serializable(designer.controller_structure)
         job.event_queue.put({"type": "run_complete", "final_state": job.metadata["final_state"]})
         job.touch(JobStatus.COMPLETED)
+        sync_project_from_job(
+            project_id=job.metadata.get("project_id"),
+            job_id=job_id,
+            status="completed",
+            results={
+                "final_state": job.metadata["final_state"],
+                "plot_data": make_serializable(job.metadata.get("plot_data", {})),
+                "modified_code": job.metadata.get("modified_code"),
+                "modified_controller_structure": job.metadata.get("modified_controller_structure"),
+            },
+        )
     except Exception as exc:
         job.error = str(exc)
         job.event_queue.put({"type": "run_error", "error": str(exc)})
         job.touch(JobStatus.FAILED)
+        sync_project_from_job(
+            project_id=job.metadata.get("project_id"),
+            job_id=job_id,
+            status="failed",
+            error=str(exc),
+        )
     finally:
         unregister_callback()
 
@@ -188,6 +206,9 @@ def init_mulo_designer(
     trimming_result: Dict[str, Any],
     equation: str,
     user_id: int | None = None,
+    project_id: int | None = None,
+    file_name: str = "",
+    file_type: str = "python",
 ) -> str:
     """Initialize the Mulo designer (LLM constraint estimation) without running GA."""
     normalized_run_config = normalize_run_config(run_config)
@@ -209,7 +230,29 @@ def init_mulo_designer(
         },
         user_id=user_id,
     )
+    case_name = str(normalized_run_config.get("case_study_file") or file_name or "mulo")
+    linked_project_id = link_or_create_for_job(
+        user_id=user_id,
+        project_id=project_id,
+        pipeline_type="muloDesign",
+        job_id=job.id,
+        file_name=file_name or case_name,
+        file_type=file_type or "python",
+        file_content=equation,
+        title=case_name,
+    )
+    if linked_project_id is not None:
+        job.metadata["project_id"] = linked_project_id
     job.touch(JobStatus.COMPLETED)
+    sync_project_from_job(
+        project_id=linked_project_id,
+        job_id=job.id,
+        status="running",
+        results={
+            "controller_structure": make_serializable(designer.controller_structure),
+            "run_config": make_serializable(normalized_run_config),
+        },
+    )
     return job.id
 
 
@@ -273,6 +316,9 @@ def start_mulo_job(
     trimming_result: Dict[str, Any],
     equation: str,
     user_id: int | None = None,
+    project_id: int | None = None,
+    file_name: str = "",
+    file_type: str = "python",
 ) -> str:
     """Legacy one-shot start: initialize designer and immediately run GA."""
     job_id = init_mulo_designer(
@@ -282,6 +328,9 @@ def start_mulo_job(
         trimming_result,
         equation,
         user_id=user_id,
+        project_id=project_id,
+        file_name=file_name,
+        file_type=file_type,
     )
     run_mulo_optimization(job_id)
     return job_id

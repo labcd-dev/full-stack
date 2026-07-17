@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { Home, LogOut, Shield } from 'lucide-react'
+import { FolderOpen, Home, LogOut, Shield, User } from 'lucide-react'
 import { ThemeToggle } from './ThemeToggle'
 import { useAuth } from '../context/AuthContext'
 import { btnBase, btnCompact } from '../lib/classes'
@@ -8,6 +8,8 @@ export function Layout() {
   const location = useLocation()
   const navigate = useNavigate()
   const isHome = location.pathname === '/'
+  const isProjects = location.pathname.startsWith('/projects')
+  const isProfile = location.pathname === '/profile'
   const { user, logout } = useAuth()
 
   const handleLogout = () => {
@@ -47,6 +49,17 @@ export function Layout() {
                 <Home className="size-4" aria-hidden />
                 Home
               </Link>
+              <Link
+                to="/projects"
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  isProjects
+                    ? 'bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-primary'
+                    : 'text-muted-text hover:text-foreground hover:bg-surface-hover'
+                }`}
+              >
+                <FolderOpen className="size-4" aria-hidden />
+                Projects
+              </Link>
               {user.is_admin && (
                 <Link
                   to="/admin"
@@ -56,12 +69,40 @@ export function Layout() {
                   Admin
                 </Link>
               )}
+              <Link
+                to="/profile"
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  isProfile
+                    ? 'bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-primary'
+                    : 'text-muted-text hover:text-foreground hover:bg-surface-hover'
+                }`}
+              >
+                <User className="size-4" aria-hidden />
+                Profile
+              </Link>
             </nav>
           )}
           <div className="flex items-center gap-2">
             {user && (
               <>
-                <span className="text-sm text-muted-text max-md:hidden">{user.email}</span>
+                <Link
+                  to="/profile"
+                  className="flex items-center gap-2 rounded-lg px-2 py-1 text-sm text-muted-text transition-colors hover:text-foreground hover:bg-surface-hover max-md:hidden"
+                  title="Profile"
+                >
+                  {user.avatar_url ? (
+                    <img
+                      src={user.avatar_url}
+                      alt=""
+                      className="size-7 rounded-full border border-border object-cover"
+                    />
+                  ) : (
+                    <span className="flex size-7 items-center justify-center rounded-full border border-border bg-surface-muted text-xs font-semibold text-primary">
+                      {(user.display_name?.trim() || user.email).slice(0, 2).toUpperCase()}
+                    </span>
+                  )}
+                  <span>{user.display_name?.trim() || user.email}</span>
+                </Link>
                 <button
                   type="button"
                   className={`${btnBase} ${btnCompact}`}

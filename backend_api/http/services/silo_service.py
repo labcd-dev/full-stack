@@ -14,8 +14,24 @@ from backend_api.SiloDesigner.app import (
 from backend_api.SiloDesigner.config import build_design_config
 from backend_api.common.serialization import make_serializable
 from backend_api.http.services.job_store import JobStatus, job_store
+from backend_api.http.services.project_service import link_or_create_for_job, sync_project_from_job
 
 MONITOR_PUBLISH_INTERVAL_SECONDS = 3.0
+
+
+def _file_type_label(file_type: str | None) -> str:
+    raw = (file_type or "").lower()
+    if "matlab" in raw or raw.endswith(".m") or raw == "matlab":
+        return "matlab"
+    return "python"
+
+
+def _file_name_from_config(config: Dict[str, Any]) -> str:
+    for key in ("file_name", "system_name", "custom_dynamics_path"):
+        value = config.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip().split("/")[-1].split("\\")[-1]
+    return "dynamics.py"
 
 
 def _monitor_publisher(job_id: str, monitor: DesignMonitor, stop_event: threading.Event) -> None:
@@ -106,15 +122,34 @@ def _silo_worker(job_id: str) -> None:
         job.metadata["monitor_state"] = get_serializable_monitor_state(monitor)
         job.event_queue.put({"type": "monitor", "content": job.metadata["monitor_state"]})
         job.touch(JobStatus.COMPLETED)
+        sync_project_from_job(
+            project_id=job.metadata.get("project_id"),
+            job_id=job_id,
+            status="completed",
+            results={"monitor_state": make_serializable(job.metadata["monitor_state"])},
+        )
     except DesignCancelledError:
         job.metadata["monitor_state"] = get_serializable_monitor_state(monitor)
         job.event_queue.put({"type": "monitor", "content": job.metadata["monitor_state"]})
         job.error = "Design cancelled by user"
         job.touch(JobStatus.CANCELLED)
+        sync_project_from_job(
+            project_id=job.metadata.get("project_id"),
+            job_id=job_id,
+            status="cancelled",
+            results={"monitor_state": make_serializable(job.metadata["monitor_state"])},
+            error=job.error,
+        )
     except Exception as exc:
         job.error = str(exc)
         job.event_queue.put({"type": "error", "content": str(exc)})
         job.touch(JobStatus.FAILED)
+        sync_project_from_job(
+            project_id=job.metadata.get("project_id"),
+            job_id=job_id,
+            status="failed",
+            error=str(exc),
+        )
     finally:
         stop_event.set()
         publisher.join(timeout=1.0)
@@ -124,6 +159,7 @@ def start_silo_job(
     config: Dict[str, Any],
     control_objective: str = "",
     user_id: int | None = None,
+    project_id: int | None = None,
 ) -> str:
     runtime_config = build_design_config(
         config,
@@ -132,6 +168,9 @@ def start_silo_job(
         custom_dynamics_path=config.get("custom_dynamics_path"),
         file_type=config.get("file_type", "Python (.py)"),
     )
+    file_name = config.get("file_name")
+    if isinstance(file_name, str) and file_name.strip():
+        runtime_config["file_name"] = file_name.strip()
     monitor = DesignMonitor()
     job = job_store.create(
         "silo",
@@ -141,6 +180,19 @@ def start_silo_job(
         },
         user_id=user_id,
     )
+    linked_project_id = link_or_create_for_job(
+        user_id=user_id,
+        project_id=project_id,
+        pipeline_type="siloDesign",
+        job_id=job.id,
+        file_name=_file_name_from_config(config),
+        file_type=_file_type_label(str(config.get("file_type", "python"))),
+        file_content=str(config.get("file_content") or ""),
+        control_objective=control_objective or None,
+        title=control_objective or None,
+    )
+    if linked_project_id is not None:
+        job.metadata["project_id"] = linked_project_id
     thread = threading.Thread(target=_silo_worker, args=(job.id,), daemon=True)
     job.thread = thread
     thread.start()

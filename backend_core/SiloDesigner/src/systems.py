@@ -2216,12 +2216,16 @@ def create_system(system_name: str, scenario=None, custom_dynamics_path: Optiona
     """Factory function to create appropriate system"""
     if system_name == "custom" and (custom_dynamics_path or file_content is not None):
         if file_type == "MATLAB/Octave (.m)":
+            if not OCTAVE_AVAILABLE:
+                raise ImportError(
+                    "oct2py is required for MATLAB/Octave (.m) dynamics. "
+                    "Install it with: pip install oct2py  (and ensure GNU Octave is installed)."
+                )
             if not matlab_func_name:
                 raise ValueError("MATLAB function name required for .m files")
 
             # Auto-detect num_states if not provided
             if not num_states:
-                from oct2py import Oct2Py
                 oct = Oct2Py()
                 try:
                     # Try to infer from the file, passing num_inputs for correct test_u

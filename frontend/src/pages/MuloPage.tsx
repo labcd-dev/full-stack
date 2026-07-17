@@ -208,6 +208,9 @@ export function MuloPage() {
         system_identification: bundle.system_identification,
         trimming_result: bundle.trimming_result,
         equation: bundle.equation,
+        project_id: pipeline.projectId,
+        file_name: pipeline.fileName || selectedCase || undefined,
+        file_type: pipeline.fileType || 'python',
       })
 
       pipeline.setMuloJobId(job.job_id)

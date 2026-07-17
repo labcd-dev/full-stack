@@ -83,7 +83,7 @@ def initialize_state(
         system.trim_values = np.array(trim_values)
 
     # Create simulator with appropriate system class
-    if system_name == "custom" and (custom_dynamics_path or file_content):
+    if system_name == "custom" and (custom_dynamics_path or file_content is not None):
         if file_type == "MATLAB/Octave (.m)":
             # Local factory function to capture num_inputs and other params
             def octave_factory(scenario=None):
@@ -1024,7 +1024,8 @@ def run_optimization(
     output_channel: int = 0,
     trim_values: Optional[List[float]] = None,
     min_ctrl: float = -10.0,  # NEW
-    max_ctrl: float = 10.0    # NEW
+    max_ctrl: float = 10.0,
+    file_content: str = None,
 ):
     graph, config = create_optimization_graph(max_scenarios, max_iter)
     initial_state = initialize_state(
@@ -1056,7 +1057,8 @@ def run_optimization(
         output_channel=output_channel,
         trim_values=trim_values,
         min_ctrl=min_ctrl,  # NEW
-        max_ctrl=max_ctrl  # NEW
+        max_ctrl=max_ctrl,  # NEW
+        file_content=file_content,
     )
     log_to_file(f"=== CONTROL OPTIMIZATION LOG - {datetime.now()} ===\n\n", True)
     for _ in graph.stream(initial_state, config={"recursion_limit": 1000}):

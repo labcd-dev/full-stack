@@ -4,9 +4,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from backend_api.db.session import init_db
-from backend_api.http.config import API_PREFIX, CORS_ORIGINS
+from backend_api.http.config import API_PREFIX, CORS_ORIGINS, UPLOADS_DIR
 from backend_api.http.routers import (
     admin,
     auth,
@@ -14,6 +15,7 @@ from backend_api.http.routers import (
     health,
     jobs,
     mulo,
+    projects,
     recommender,
     regularizer,
     silo,
@@ -47,6 +49,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router, prefix=API_PREFIX)
     app.include_router(auth.router, prefix=API_PREFIX)
     app.include_router(admin.router, prefix=API_PREFIX)
+    app.include_router(projects.router, prefix=API_PREFIX)
     app.include_router(upload.router, prefix=API_PREFIX)
     app.include_router(regularizer.router, prefix=API_PREFIX)
     app.include_router(recommender.router, prefix=API_PREFIX)
@@ -55,6 +58,7 @@ def create_app() -> FastAPI:
     app.include_router(mulo.router, prefix=API_PREFIX)
     app.include_router(jobs.router, prefix=API_PREFIX)
     app.include_router(case_studies.router, prefix=API_PREFIX)
+    app.mount(f"{API_PREFIX}/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
     return app
 
 

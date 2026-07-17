@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Shield, UserCheck, Users, Zap } from 'lucide-react'
+import { FolderKanban, Shield, UserCheck, Users, Zap } from 'lucide-react'
 import { adminApi } from '../api/endpoints'
-import type { ActionInfo, AuthUser } from '../api/types'
+import type { ActionInfo, AuthUser, ProjectSummary } from '../api/types'
 import { StatusMessage } from '../components/StatusMessage'
 import { btnPrimary, cardPanel } from '../lib/classes'
 
 export function AdminOverviewPage() {
   const [users, setUsers] = useState<AuthUser[]>([])
   const [actions, setActions] = useState<ActionInfo[]>([])
+  const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -17,12 +18,14 @@ export function AdminOverviewPage() {
       setLoading(true)
       setError(null)
       try {
-        const [userList, actionList] = await Promise.all([
+        const [userList, actionList, projectList] = await Promise.all([
           adminApi.listUsers(),
           adminApi.listActions(),
+          adminApi.listProjects(),
         ])
         setUsers(userList)
         setActions(actionList)
+        setProjects(projectList)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load overview')
       } finally {
@@ -47,6 +50,12 @@ export function AdminOverviewPage() {
       value: loading ? '—' : String(activeUsers),
       icon: UserCheck,
       hint: 'Can sign in today',
+    },
+    {
+      label: 'Projects',
+      value: loading ? '—' : String(projects.length),
+      icon: FolderKanban,
+      hint: 'User design sessions',
     },
     {
       label: 'Admins',
@@ -78,7 +87,7 @@ export function AdminOverviewPage() {
 
       {error && <StatusMessage type="error" message={error} />}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {stats.map(({ label, value, icon: Icon, hint }) => (
           <div
             key={label}
@@ -112,6 +121,19 @@ export function AdminOverviewPage() {
         <Link to="/admin/users" className={`${btnPrimary} shrink-0`}>
           <Users className="size-4" aria-hidden />
           Manage users
+        </Link>
+      </section>
+
+      <section className={`${cardPanel} flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between`}>
+        <div>
+          <h2 className="m-0 text-lg font-semibold text-foreground">User projects</h2>
+          <p className="mt-1 mb-0 text-sm text-muted-text leading-relaxed">
+            Inspect uploaded dynamics files and design results across all user projects.
+          </p>
+        </div>
+        <Link to="/admin/projects" className={`${btnPrimary} shrink-0`}>
+          <FolderKanban className="size-4" aria-hidden />
+          Manage projects
         </Link>
       </section>
 

@@ -9,6 +9,7 @@ interface PipelineState {
   pipeline: PipelineType
   changeApplied: boolean
   humanIntervention: boolean
+  projectId: number | null
   recommenderJobId: string | null
   trimmerJobId: string | null
   siloJobId: string | null
@@ -22,6 +23,7 @@ interface PipelineContextValue extends PipelineState {
   setFile: (name: string, type: string, content: string) => void
   setModel: (model: string) => void
   setPipeline: (pipeline: PipelineType) => void
+  setProjectId: (projectId: number | null) => void
   setRegularizeResult: (content: string, changeApplied: boolean, humanIntervention: boolean) => void
   setRecommenderJobId: (jobId: string | null) => void
   setTrimmerJobId: (jobId: string | null) => void
@@ -42,6 +44,7 @@ const initialState: PipelineState = {
   pipeline: null,
   changeApplied: false,
   humanIntervention: false,
+  projectId: null,
   recommenderJobId: null,
   trimmerJobId: null,
   siloJobId: null,
@@ -60,9 +63,10 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     () => ({
       ...state,
       setFile: (fileName, fileType, fileContent) =>
-        setState((prev) => ({ ...prev, fileName, fileType, fileContent })),
+        setState((prev) => ({ ...prev, fileName, fileType, fileContent, projectId: null })),
       setModel: (model) => setState((prev) => ({ ...prev, model })),
       setPipeline: (pipeline) => setState((prev) => ({ ...prev, pipeline })),
+      setProjectId: (projectId) => setState((prev) => ({ ...prev, projectId })),
       setRegularizeResult: (fileContent, changeApplied, humanIntervention) =>
         setState((prev) => ({ ...prev, fileContent, changeApplied, humanIntervention })),
       setRecommenderJobId: (recommenderJobId) =>

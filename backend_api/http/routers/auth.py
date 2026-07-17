@@ -1,31 +1,34 @@
 """Authentication routes: login, register, and current user profile."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from backend_api.db.models import User
 from backend_api.db.session import get_db
 from backend_api.http.dependencies import get_current_user
-from backend_api.http.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserOut
+from backend_api.http.schemas.auth import (
+    ChangePasswordRequest,
+    LoginRequest,
+    RegisterRequest,
+    TokenResponse,
+    UpdateProfileRequest,
+    UserOut,
+)
 from backend_api.http.services.auth_service import (
     authenticate_user,
     create_access_token,
     create_user,
     get_user_by_email,
 )
+from backend_api.http.services.profile_service import (
+    change_password,
+    remove_avatar,
+    save_avatar,
+    update_profile,
+    user_out,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-
-def _user_out(user: User) -> UserOut:
-    return UserOut(
-        id=user.id,
-        email=user.email,
-        is_admin=user.is_admin,
-        is_active=user.is_active,
-        actions=user.action_codes(),
-        created_at=user.created_at,
-    )
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -60,4 +63,51 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)) -> TokenRe
 
 @router.get("/me", response_model=UserOut)
 def me(user: User = Depends(get_current_user)) -> UserOut:
-    return _user_out(user)
+    return user_out(user)
+
+
+@router.patch("/me", response_model=UserOut)
+def update_me(
+    request: UpdateProfileRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> UserOut:
+    try:
+        updated = update_profile(db, user, request)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return user_out(updated)
+
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+def change_password_endpoint(
+    request: ChangePasswordRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    try:
+        change_password(db, user, request)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.post("/me/avatar", response_model=UserOut)
+async def upload_avatar(
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> UserOut:
+    try:
+        updated = await save_avatar(db, user, file)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return user_out(updated)
+
+
+@router.delete("/me/avatar", response_model=UserOut)
+def delete_avatar(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> UserOut:
+    updated = remove_avatar(db, user)
+    return user_out(updated)

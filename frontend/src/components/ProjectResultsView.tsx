@@ -1,0 +1,222 @@
+import { useMemo, useState } from 'react'
+import type { ProjectPipelineType } from '../api/types'
+import { DesignIterationReport } from './DesignIterationReport'
+import { DesignMonitorDashboard } from './DesignMonitorDashboard'
+import { CodePreview } from './CodePreview'
+import { JsonViewer } from './JsonViewer'
+import { PlotlyChart } from './PlotlyChart'
+import { StatusMessage } from './StatusMessage'
+import { Tabs } from './Tabs'
+import type { LlmResponseEntry } from '../lib/llmResponseParser'
+import type { StateHistoryEntry } from '../lib/monitorStateParser'
+import type { MuloPlotData } from '../lib/muloDesignConfig'
+import {
+  buildCostChart,
+  buildGainsCharts,
+  buildMetricsCharts,
+  buildSummaryCharts,
+} from '../lib/muloPlotCharts'
+import { cardPanel, mutedText } from '../lib/classes'
+
+interface ProjectResultsViewProps {
+  pipelineType: ProjectPipelineType
+  results?: Record<string, unknown> | null
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null
+}
+
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : []
+}
+
+function isMuloPlotData(value: unknown): value is MuloPlotData {
+  const data = asRecord(value)
+  return Boolean(data && Array.isArray(data.cumulative_nfe) && data.cumulative_nfe.length > 0)
+}
+
+function extractMuloFixedTargets(
+  controllerStructure: unknown,
+): Record<string, number> {
+  const loops = asArray(controllerStructure)
+  const first = asRecord(loops[0])
+  const metrics = asRecord(first?.metrics)
+  if (!metrics) return {}
+  const targets: Record<string, number> = {}
+  for (const [key, value] of Object.entries(metrics)) {
+    if (typeof value === 'number') targets[key] = value
+  }
+  return targets
+}
+
+function SiloResults({ monitorState }: { monitorState: Record<string, unknown> }) {
+  const [activeTab, setActiveTab] = useState('simulation')
+  const llmResponses = asArray(monitorState.llm_responses) as LlmResponseEntry[]
+  const stateHistory = asArray(monitorState.state_history) as StateHistoryEntry[]
+  const currentState = asRecord(monitorState.current_state)
+
+  const tabs = [
+    {
+      id: 'simulation',
+      label: 'Simulation',
+      content:
+        stateHistory.length > 0 || currentState ? (
+          <DesignMonitorDashboard stateHistory={stateHistory} currentState={currentState} />
+        ) : (
+          <p className={mutedText}>No simulation metrics were saved for this project.</p>
+        ),
+    },
+    {
+      id: 'process',
+      label: 'Design Process',
+      content:
+        llmResponses.length > 0 ? (
+          <DesignIterationReport responses={llmResponses} defaultExpanded="all" />
+        ) : (
+          <p className={mutedText}>No agent iteration data was saved for this project.</p>
+        ),
+    },
+    {
+      id: 'raw',
+      label: 'Raw JSON',
+      content: <CodePreview value={JSON.stringify(monitorState, null, 2)} readOnly />,
+    },
+  ]
+
+  return <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
+}
+
+function MuloResults({ results }: { results: Record<string, unknown> }) {
+  const [activeTab, setActiveTab] = useState('output')
+  const plotData = isMuloPlotData(results.plot_data) ? results.plot_data : null
+  const modifiedCode =
+    typeof results.modified_code === 'string' ? results.modified_code : null
+  const modifiedStructure = results.modified_controller_structure ?? null
+  const controllerStructure = results.modified_controller_structure ?? results.controller_structure
+
+  const fixedTargets = useMemo(
+    () => extractMuloFixedTargets(controllerStructure),
+    [controllerStructure],
+  )
+
+  const costChart = useMemo(() => (plotData ? buildCostChart(plotData) : null), [plotData])
+  const metricsCharts = useMemo(
+    () => (plotData ? buildMetricsCharts(plotData, fixedTargets) : []),
+    [plotData, fixedTargets],
+  )
+  const gainsCharts = useMemo(
+    () => (plotData ? buildGainsCharts(plotData) : []),
+    [plotData],
+  )
+  const summaryCharts = useMemo(
+    () => (plotData ? buildSummaryCharts(plotData) : []),
+    [plotData],
+  )
+
+  const tabs = [
+    {
+      id: 'output',
+      label: 'Final Output',
+      content:
+        modifiedStructure || modifiedCode ? (
+          <div className="flex flex-col gap-4">
+            {modifiedStructure ? (
+              <JsonViewer data={modifiedStructure} title="Controller structure" />
+            ) : null}
+            {modifiedCode ? (
+              <div className={cardPanel}>
+                <h4 className="m-0 mb-2 text-sm font-semibold text-foreground">
+                  Modified Python code
+                </h4>
+                <CodePreview value={modifiedCode} readOnly />
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <p className={mutedText}>No final controller output was saved for this project.</p>
+        ),
+    },
+    {
+      id: 'cost',
+      label: 'Baseline Cost',
+      content: costChart ? (
+        <PlotlyChart data={costChart.data} layout={costChart.layout} />
+      ) : (
+        <p className={mutedText}>No optimization cost history was saved.</p>
+      ),
+    },
+    {
+      id: 'metrics',
+      label: 'Performance Metrics',
+      content: metricsCharts.length ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {metricsCharts.map((chart, index) => (
+            <PlotlyChart key={index} data={chart.data} layout={chart.layout} height={220} />
+          ))}
+        </div>
+      ) : (
+        <p className={mutedText}>No performance metric history was saved.</p>
+      ),
+    },
+    {
+      id: 'gains',
+      label: 'PID Gains',
+      content: gainsCharts.length ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {gainsCharts.map((chart, index) => (
+            <PlotlyChart key={index} data={chart.data} layout={chart.layout} height={260} />
+          ))}
+        </div>
+      ) : (
+        <p className={mutedText}>No PID gain history was saved.</p>
+      ),
+    },
+    {
+      id: 'summary',
+      label: 'LLM Summary',
+      content: summaryCharts.length ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {summaryCharts.map((chart, index) => (
+            <PlotlyChart key={index} data={chart.data} layout={chart.layout} height={260} />
+          ))}
+        </div>
+      ) : (
+        <p className={mutedText}>No LLM summary charts were saved.</p>
+      ),
+    },
+    {
+      id: 'raw',
+      label: 'Raw JSON',
+      content: <CodePreview value={JSON.stringify(results, null, 2)} readOnly />,
+    },
+  ]
+
+  return <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
+}
+
+export function ProjectResultsView({ pipelineType, results }: ProjectResultsViewProps) {
+  if (!results) {
+    return <p className={mutedText}>No results saved yet.</p>
+  }
+
+  const error = typeof results.error === 'string' ? results.error : null
+  if (error) {
+    return <StatusMessage type="error" message={error} />
+  }
+
+  if (pipelineType === 'siloDesign') {
+    const monitorState = asRecord(results.monitor_state)
+    if (monitorState) {
+      return <SiloResults monitorState={monitorState} />
+    }
+  }
+
+  if (pipelineType === 'muloDesign') {
+    return <MuloResults results={results} />
+  }
+
+  return <CodePreview value={JSON.stringify(results, null, 2)} readOnly />
+}

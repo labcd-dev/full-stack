@@ -11,7 +11,7 @@ import {
   X,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { healthApi, regularizerApi, uploadApi } from '../api/endpoints'
+import { healthApi, projectsApi, regularizerApi, uploadApi } from '../api/endpoints'
 import { CodePreview } from '../components/CodePreview'
 import { FileUpload } from '../components/FileUpload'
 import { ModelSelect } from '../components/ModelSelect'
@@ -114,11 +114,30 @@ export function HomePage() {
     }
   }
 
-  const proceedToPipeline = () => {
-    if (pipeline.pipeline === 'muloDesign') {
-      navigate('/mulo?step=recommender')
-    } else if (pipeline.pipeline === 'siloDesign') {
-      navigate('/silo')
+  const proceedToPipeline = async () => {
+    if (!pipeline.pipeline || !pipeline.fileContent) return
+    setLoading(true)
+    setError(null)
+    try {
+      if (!pipeline.projectId) {
+        const project = await projectsApi.create({
+          title: pipeline.fileName || undefined,
+          pipeline_type: pipeline.pipeline,
+          file_name: pipeline.fileName,
+          file_type: pipeline.fileType,
+          file_content: pipeline.fileContent,
+        })
+        pipeline.setProjectId(project.id)
+      }
+      if (pipeline.pipeline === 'muloDesign') {
+        navigate('/mulo?step=recommender')
+      } else if (pipeline.pipeline === 'siloDesign') {
+        navigate('/silo')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create project')
+    } finally {
+      setLoading(false)
     }
   }
 

@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from typing import Literal
+
 from pydantic import BaseModel, EmailStr, Field
+
+ThemeMode = Literal["light", "dark", "system"]
 
 
 class LoginRequest(BaseModel):
@@ -30,12 +34,27 @@ class ActionOut(BaseModel):
 class UserOut(BaseModel):
     id: int
     email: EmailStr
+    display_name: str | None = None
+    avatar_url: str | None = None
+    theme: ThemeMode = "system"
     is_admin: bool
     is_active: bool
     actions: list[str]
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class UpdateProfileRequest(BaseModel):
+    display_name: str | None = Field(default=None, max_length=100)
+    email: EmailStr | None = None
+    theme: ThemeMode | None = None
+    current_password: str | None = Field(default=None, min_length=1)
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=1)
+    new_password: str = Field(min_length=6)
 
 
 class CreateUserRequest(BaseModel):

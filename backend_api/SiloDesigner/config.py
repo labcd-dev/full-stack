@@ -61,6 +61,23 @@ def get_default_param_ranges_for_all() -> Dict[str, Dict[str, list[float]]]:
     return defaults
 
 
+def _matlab_func_name_from_config(config: Dict[str, Any]) -> Optional[str]:
+    """Resolve MATLAB function name from config or uploaded filename."""
+    explicit = config.get("matlab_func_name")
+    if isinstance(explicit, str) and explicit.strip():
+        return explicit.strip()
+
+    file_name = config.get("file_name")
+    if isinstance(file_name, str) and file_name.strip():
+        stem = file_name.strip().split("/")[-1].split("\\")[-1]
+        if stem.lower().endswith(".m"):
+            stem = stem[:-2]
+        if stem:
+            return stem
+
+    return "dynamics"
+
+
 def build_design_config(
     base_config: Optional[Dict[str, Any]] = None,
     *,
@@ -84,7 +101,7 @@ def build_design_config(
     }
 
     if config["file_type"] == "MATLAB/Octave (.m)":
-        config["matlab_func_name"] = selected_base_config.get("matlab_func_name")
+        config["matlab_func_name"] = _matlab_func_name_from_config(config)
         config["num_states"] = selected_base_config.get("num_states")
     elif "FSF" in config.get("controllers", []):
         config["num_states"] = selected_base_config.get("num_states")

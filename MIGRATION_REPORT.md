@@ -1,5 +1,8 @@
 # LabCD Migration Report
 
+> **Historical document.** The FastAPI + React stack now exists under `backend_api/` and `frontend/`.
+> For how to run and where code lives, see [README.md](./README.md). Keep this file for migration context only.
+
 **Streamlit → FastAPI + React**
 
 | Field | Value |

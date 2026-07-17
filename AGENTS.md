@@ -2,6 +2,8 @@
 
 This project is a migration from Streamlit to FastAPI + React.
 
+See [README.md](./README.md) for how to run the stack and where business logic lives.
+
 Goals
 
 - readable code

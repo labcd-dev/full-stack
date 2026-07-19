@@ -1,4 +1,11 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from 'react'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 
@@ -58,11 +65,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return () => media.removeEventListener('change', onChange)
   }, [theme])
 
-  const setTheme = (next: ThemeMode) => setThemeState(next)
+  // Stable identity so UserThemeSync does not re-apply profile theme on every render.
+  const setTheme = useCallback((next: ThemeMode) => setThemeState(next), [])
 
-  const toggleTheme = () => {
-    setThemeState(resolvedTheme === 'dark' ? 'light' : 'dark')
-  }
+  const toggleTheme = useCallback(() => {
+    setThemeState((current) => (resolveTheme(current) === 'dark' ? 'light' : 'dark'))
+  }, [])
 
   return (
     <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme, toggleTheme }}>

@@ -1,8 +1,9 @@
-"""ORM models for authentication, permissions, and projects."""
+"""ORM models for authentication, plans, permissions, and projects."""
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
@@ -11,6 +12,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    Numeric,
     String,
     Table,
     Text,
@@ -22,15 +24,48 @@ from sqlalchemy.types import JSON
 
 from backend_api.db.base import Base
 
-user_actions = Table(
-    "user_actions",
+plan_actions = Table(
+    "plan_actions",
     Base.metadata,
-    Column("user_id", ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    Column("plan_id", ForeignKey("plans.id", ondelete="CASCADE"), primary_key=True),
     Column("action_id", ForeignKey("actions.id", ondelete="CASCADE"), primary_key=True),
 )
 
 # JSONB on PostgreSQL; plain JSON elsewhere (e.g. local SQLite tests).
 JsonDict = JSON().with_variant(JSONB(), "postgresql")
+
+
+class Plan(Base):
+    """Subscription-style access plan: price + allowed module/pipeline actions."""
+
+    __tablename__ = "plans"
+    __table_args__ = (UniqueConstraint("name", name="uq_plans_name"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    description: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    price: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0.00"), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    actions: Mapped[list[Action]] = relationship(
+        "Action",
+        secondary=plan_actions,
+        back_populates="plans",
+        lazy="selectin",
+    )
+    users: Mapped[list[User]] = relationship(
+        "User",
+        back_populates="plan",
+        lazy="noload",
+    )
+
+    def action_codes(self) -> list[str]:
+        return sorted(action.code for action in self.actions)
 
 
 class User(Base):
@@ -44,15 +79,19 @@ class User(Base):
     display_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     theme: Mapped[str] = mapped_column(String(20), default="system", nullable=False)
+    plan_id: Mapped[int | None] = mapped_column(
+        ForeignKey("plans.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
 
-    actions: Mapped[list[Action]] = relationship(
-        "Action",
-        secondary=user_actions,
+    plan: Mapped[Plan | None] = relationship(
+        "Plan",
         back_populates="users",
         lazy="selectin",
     )
@@ -64,12 +103,14 @@ class User(Base):
     )
 
     def action_codes(self) -> list[str]:
-        return sorted(action.code for action in self.actions)
+        if self.plan is None:
+            return []
+        return self.plan.action_codes()
 
     def has_action(self, code: str) -> bool:
         if self.is_admin:
             return True
-        return any(action.code == code for action in self.actions)
+        return code in self.action_codes()
 
 
 class Action(Base):
@@ -80,12 +121,21 @@ class Action(Base):
     code: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     description: Mapped[str] = mapped_column(Text, default="", nullable=False)
 
-    users: Mapped[list[User]] = relationship(
-        "User",
-        secondary=user_actions,
+    plans: Mapped[list[Plan]] = relationship(
+        "Plan",
+        secondary=plan_actions,
         back_populates="actions",
         lazy="selectin",
     )
+
+
+class AppSetting(Base):
+    """Key/value application settings (e.g. default registration plan)."""
+
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String(100), primary_key=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
 
 class Project(Base):

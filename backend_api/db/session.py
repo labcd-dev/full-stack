@@ -2,7 +2,7 @@
 
 from collections.abc import Generator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from backend_api.http.config import DATABASE_URL
@@ -20,31 +20,34 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db() -> None:
-    """Create tables and seed default actions / admin user."""
+    """Create tables and seed default actions / plans / admin user."""
     # Import models so metadata is registered.
     from backend_api.db import models  # noqa: F401
     from backend_api.db.base import Base
     from backend_api.http.services.auth_service import seed_auth_data
 
     Base.metadata.create_all(bind=engine)
-    _migrate_user_profile_columns()
+    _migrate_schema()
     db = SessionLocal()
     try:
         seed_auth_data(db)
+        _migrate_legacy_user_actions(db)
     finally:
         db.close()
 
 
-def _migrate_user_profile_columns() -> None:
-    """Add profile columns to existing deployments created before this feature."""
-    from sqlalchemy import inspect, text
+def _migrate_schema() -> None:
+    """Add columns/tables for existing deployments created before plans."""
+    from sqlalchemy import inspect
 
     inspector = inspect(engine)
-    if "users" not in inspector.get_table_names():
+    table_names = set(inspector.get_table_names())
+    if "users" not in table_names:
         return
 
     columns = {col["name"] for col in inspector.get_columns("users")}
     statements: list[str] = []
+
     if "display_name" not in columns:
         statements.append("ALTER TABLE users ADD COLUMN display_name VARCHAR(100)")
     if "avatar_url" not in columns:
@@ -53,6 +56,8 @@ def _migrate_user_profile_columns() -> None:
         statements.append(
             "ALTER TABLE users ADD COLUMN theme VARCHAR(20) NOT NULL DEFAULT 'system'"
         )
+    if "plan_id" not in columns:
+        statements.append("ALTER TABLE users ADD COLUMN plan_id INTEGER")
 
     if not statements:
         return
@@ -60,3 +65,79 @@ def _migrate_user_profile_columns() -> None:
     with engine.begin() as conn:
         for statement in statements:
             conn.execute(text(statement))
+
+    # Add FK after column exists (idempotent enough for Postgres).
+    if "plan_id" not in columns and "plans" in set(inspect(engine).get_table_names()):
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "ALTER TABLE users DROP CONSTRAINT IF EXISTS users_plan_id_fkey"
+                )
+            )
+            conn.execute(
+                text(
+                    "ALTER TABLE users ADD CONSTRAINT users_plan_id_fkey "
+                    "FOREIGN KEY (plan_id) REFERENCES plans(id) ON DELETE SET NULL"
+                )
+            )
+
+
+def _migrate_legacy_user_actions(db: Session) -> None:
+    """Move legacy user_actions rows onto plans, then drop the old table."""
+    from sqlalchemy import inspect
+
+    from backend_api.db.models import Action, Plan, User
+    from backend_api.http.services import plan_service
+    from backend_api.http.services.auth_service import ensure_actions
+
+    inspector = inspect(engine)
+    if "user_actions" not in inspector.get_table_names():
+        return
+
+    rows = db.execute(
+        text(
+            "SELECT ua.user_id, a.code "
+            "FROM user_actions ua "
+            "JOIN actions a ON a.id = ua.action_id "
+            "ORDER BY ua.user_id, a.code"
+        )
+    ).fetchall()
+
+    by_user: dict[int, list[str]] = {}
+    for user_id, code in rows:
+        by_user.setdefault(int(user_id), []).append(str(code))
+
+    plan_by_codes: dict[frozenset[str], Plan] = {}
+    for plan in plan_service.list_plans(db):
+        plan_by_codes[frozenset(plan.action_codes())] = plan
+
+    default_plan = plan_service.get_default_plan(db)
+
+    for user in db.query(User).all():
+        if user.plan_id is not None:
+            continue
+        codes = by_user.get(user.id, [])
+        key = frozenset(codes)
+        if not key:
+            if default_plan is not None and not user.is_admin:
+                user.plan_id = default_plan.id
+            continue
+        plan = plan_by_codes.get(key)
+        if plan is None:
+            plan = Plan(
+                name=f"Legacy plan ({user.email})",
+                description="Migrated from direct user action assignments.",
+                price=0,
+                is_active=True,
+            )
+            db.add(plan)
+            db.flush()
+            plan.actions = ensure_actions(db, sorted(key))
+            plan_by_codes[key] = plan
+        user.plan_id = plan.id
+        db.add(user)
+
+    db.commit()
+
+    with engine.begin() as conn:
+        conn.execute(text("DROP TABLE IF EXISTS user_actions"))

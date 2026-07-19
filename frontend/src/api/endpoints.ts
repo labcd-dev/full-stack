@@ -4,11 +4,13 @@ import type {
   ArtifactResponse,
   AuthUser,
   CaseStudiesResponse,
+  DefaultPlanInfo,
   JobResponse,
   JobStatusResponse,
   ModelsResponse,
   MuloDesignerStateResponse,
   MuloSimulateResponse,
+  PlanInfo,
   ProjectDetail,
   ProjectSummary,
   RagStatusResponse,
@@ -57,25 +59,64 @@ export const authApi = {
 
 export const adminApi = {
   listActions: () => apiFetch<ActionInfo[]>('/admin/actions'),
+  listPlans: (params?: { active_only?: boolean }) => {
+    const query = new URLSearchParams()
+    if (params?.active_only) query.set('active_only', 'true')
+    const suffix = query.toString() ? `?${query}` : ''
+    return apiFetch<PlanInfo[]>(`/admin/plans${suffix}`)
+  },
+  createPlan: (body: {
+    name: string
+    description?: string
+    price?: number
+    actions?: string[]
+    is_active?: boolean
+  }) =>
+    apiFetch<PlanInfo>('/admin/plans', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updatePlan: (
+    planId: number,
+    body: {
+      name?: string
+      description?: string
+      price?: number
+      actions?: string[]
+      is_active?: boolean
+    },
+  ) =>
+    apiFetch<PlanInfo>(`/admin/plans/${planId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  deletePlan: (planId: number) =>
+    apiFetch<void>(`/admin/plans/${planId}`, { method: 'DELETE' }),
+  getDefaultPlan: () => apiFetch<DefaultPlanInfo>('/admin/settings/default-plan'),
+  setDefaultPlan: (planId: number) =>
+    apiFetch<DefaultPlanInfo>('/admin/settings/default-plan', {
+      method: 'PUT',
+      body: JSON.stringify({ plan_id: planId }),
+    }),
   listUsers: () => apiFetch<AuthUser[]>('/admin/users'),
   createUser: (body: {
     email: string
     password: string
     is_admin?: boolean
-    actions?: string[]
+    plan_id?: number | null
   }) =>
     apiFetch<AuthUser>('/admin/users', {
       method: 'POST',
       body: JSON.stringify(body),
     }),
-  setUserActions: (userId: number, actions: string[]) =>
-    apiFetch<AuthUser>(`/admin/users/${userId}/actions`, {
-      method: 'PUT',
-      body: JSON.stringify({ actions }),
-    }),
   updateUser: (
     userId: number,
-    body: { is_active?: boolean; is_admin?: boolean; password?: string },
+    body: {
+      is_active?: boolean
+      is_admin?: boolean
+      password?: string
+      plan_id?: number | null
+    },
   ) =>
     apiFetch<AuthUser>(`/admin/users/${userId}`, {
       method: 'PATCH',

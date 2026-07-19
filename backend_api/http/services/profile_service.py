@@ -33,6 +33,8 @@ def user_out(user: User) -> UserOut:
         theme=theme,  # type: ignore[arg-type]
         is_admin=user.is_admin,
         is_active=user.is_active,
+        plan_id=user.plan_id,
+        plan_name=user.plan.name if user.plan is not None else None,
         actions=user.action_codes(),
         created_at=user.created_at,
     )

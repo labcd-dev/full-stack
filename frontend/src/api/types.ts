@@ -117,6 +117,8 @@ export interface AuthUser {
   theme: ThemeMode
   is_admin: boolean
   is_active: boolean
+  plan_id: number | null
+  plan_name: string | null
   actions: string[]
   created_at: string
 }
@@ -124,6 +126,21 @@ export interface AuthUser {
 export interface ActionInfo {
   code: string
   description: string
+}
+
+export interface PlanInfo {
+  id: number
+  name: string
+  description: string
+  price: number
+  is_active: boolean
+  actions: string[]
+  created_at: string
+}
+
+export interface DefaultPlanInfo {
+  plan_id: number | null
+  plan: PlanInfo | null
 }
 
 export interface TokenResponse {

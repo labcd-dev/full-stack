@@ -1,4 +1,4 @@
-"""Admin routes for managing users, actions, and projects."""
+"""Admin routes for managing users, plans, actions, and projects."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -9,22 +9,29 @@ from backend_api.http.dependencies import require_admin
 from backend_api.http.schemas.auth import (
     ActionOut,
     CreateUserRequest,
-    UpdateUserActionsRequest,
+    DefaultPlanOut,
+    PlanCreateRequest,
+    PlanOut,
+    PlanUpdateRequest,
+    SetDefaultPlanRequest,
     UpdateUserRequest,
     UserOut,
 )
 from backend_api.http.schemas.projects import ProjectDetail, ProjectSummary, ProjectUpdateRequest
-from backend_api.http.services import project_service
+from backend_api.http.services import plan_service, project_service
 from backend_api.http.services.auth_service import (
     create_user,
     get_user_by_email,
     get_user_by_id,
     hash_password,
-    set_user_actions,
 )
 from backend_api.http.services.profile_service import user_out
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+def _plan_out(plan) -> PlanOut:
+    return PlanOut(**plan_service.plan_out_dict(plan))
 
 
 @router.get("/actions", response_model=list[ActionOut])
@@ -34,6 +41,100 @@ def list_actions(
 ) -> list[ActionOut]:
     actions = db.query(Action).order_by(Action.code).all()
     return [ActionOut(code=a.code, description=a.description) for a in actions]
+
+
+@router.get("/plans", response_model=list[PlanOut])
+def list_plans(
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+    active_only: bool = Query(default=False),
+) -> list[PlanOut]:
+    return [_plan_out(plan) for plan in plan_service.list_plans(db, active_only=active_only)]
+
+
+@router.post("/plans", response_model=PlanOut, status_code=status.HTTP_201_CREATED)
+def create_plan(
+    request: PlanCreateRequest,
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> PlanOut:
+    try:
+        plan = plan_service.create_plan(
+            db,
+            name=request.name,
+            description=request.description,
+            price=request.price,
+            action_codes=request.actions,
+            is_active=request.is_active,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _plan_out(plan)
+
+
+@router.patch("/plans/{plan_id}", response_model=PlanOut)
+def update_plan(
+    plan_id: int,
+    request: PlanUpdateRequest,
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> PlanOut:
+    plan = plan_service.get_plan(db, plan_id)
+    if plan is None:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    try:
+        plan = plan_service.update_plan(
+            db,
+            plan,
+            name=request.name,
+            description=request.description,
+            price=request.price,
+            action_codes=request.actions,
+            is_active=request.is_active,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _plan_out(plan)
+
+
+@router.delete("/plans/{plan_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_plan(
+    plan_id: int,
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> None:
+    plan = plan_service.get_plan(db, plan_id)
+    if plan is None:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    try:
+        plan_service.delete_plan(db, plan)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/settings/default-plan", response_model=DefaultPlanOut)
+def get_default_plan(
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> DefaultPlanOut:
+    plan = plan_service.get_default_plan(db)
+    return DefaultPlanOut(
+        plan_id=plan.id if plan else None,
+        plan=_plan_out(plan) if plan else None,
+    )
+
+
+@router.put("/settings/default-plan", response_model=DefaultPlanOut)
+def set_default_plan(
+    request: SetDefaultPlanRequest,
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> DefaultPlanOut:
+    try:
+        plan = plan_service.set_default_plan(db, request.plan_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return DefaultPlanOut(plan_id=plan.id, plan=_plan_out(plan))
 
 
 @router.get("/users", response_model=list[UserOut])
@@ -53,27 +154,16 @@ def create_user_endpoint(
 ) -> UserOut:
     if get_user_by_email(db, request.email) is not None:
         raise HTTPException(status_code=400, detail="Email already registered")
+    if request.plan_id is not None and plan_service.get_plan(db, request.plan_id) is None:
+        raise HTTPException(status_code=400, detail="Plan not found")
     user = create_user(
         db,
         email=request.email,
         password=request.password,
-        action_codes=request.actions,
+        plan_id=request.plan_id,
         is_admin=request.is_admin,
+        assign_default_plan=False,
     )
-    return user_out(user)
-
-
-@router.put("/users/{user_id}/actions", response_model=UserOut)
-def update_user_actions(
-    user_id: int,
-    request: UpdateUserActionsRequest,
-    _: User = Depends(require_admin),
-    db: Session = Depends(get_db),
-) -> UserOut:
-    user = get_user_by_id(db, user_id)
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-    user = set_user_actions(db, user, request.actions)
     return user_out(user)
 
 
@@ -93,6 +183,16 @@ def update_user(
         user.is_admin = request.is_admin
     if request.password is not None:
         user.password_hash = hash_password(request.password)
+    if "plan_id" in request.model_fields_set:
+        if request.plan_id is None:
+            user.plan_id = None
+        else:
+            plan = plan_service.get_plan(db, request.plan_id)
+            if plan is None:
+                raise HTTPException(status_code=400, detail="Plan not found")
+            if not plan.is_active:
+                raise HTTPException(status_code=400, detail="Cannot assign an inactive plan")
+            user.plan = plan
     db.add(user)
     db.commit()
     db.refresh(user)

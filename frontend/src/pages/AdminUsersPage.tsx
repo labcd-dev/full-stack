@@ -9,7 +9,7 @@ import {
   X,
 } from 'lucide-react'
 import { adminApi } from '../api/endpoints'
-import type { ActionInfo, AuthUser } from '../api/types'
+import type { AuthUser, PlanInfo } from '../api/types'
 import { StatusMessage } from '../components/StatusMessage'
 import { useAuth } from '../context/AuthContext'
 import {
@@ -25,7 +25,8 @@ import {
 export function AdminUsersPage() {
   const { user: currentUser } = useAuth()
   const [users, setUsers] = useState<AuthUser[]>([])
-  const [actions, setActions] = useState<ActionInfo[]>([])
+  const [plans, setPlans] = useState<PlanInfo[]>([])
+  const [defaultPlanId, setDefaultPlanId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -35,8 +36,13 @@ export function AdminUsersPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isAdmin, setIsAdmin] = useState(false)
-  const [selectedActions, setSelectedActions] = useState<string[]>([])
+  const [planId, setPlanId] = useState<number | ''>('')
   const [editingUserId, setEditingUserId] = useState<number | null>(null)
+
+  const activePlans = useMemo(
+    () => plans.filter((plan) => plan.is_active),
+    [plans],
+  )
 
   useEffect(() => {
     if (!currentUser?.is_admin) return
@@ -44,12 +50,14 @@ export function AdminUsersPage() {
       setLoading(true)
       setError(null)
       try {
-        const [userList, actionList] = await Promise.all([
+        const [userList, planList, defaultPlan] = await Promise.all([
           adminApi.listUsers(),
-          adminApi.listActions(),
+          adminApi.listPlans(),
+          adminApi.getDefaultPlan(),
         ])
         setUsers(userList)
-        setActions(actionList)
+        setPlans(planList)
+        setDefaultPlanId(defaultPlan.plan_id)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load users')
       } finally {
@@ -65,6 +73,7 @@ export function AdminUsersPage() {
     return users.filter(
       (u) =>
         u.email.toLowerCase().includes(q) ||
+        (u.plan_name?.toLowerCase().includes(q) ?? false) ||
         u.actions.some((a) => a.toLowerCase().includes(q)),
     )
   }, [users, query])
@@ -73,18 +82,12 @@ export function AdminUsersPage() {
     return <Navigate to="/" replace />
   }
 
-  const toggleAction = (code: string) => {
-    setSelectedActions((prev) =>
-      prev.includes(code) ? prev.filter((item) => item !== code) : [...prev, code],
-    )
-  }
-
   const openCreate = () => {
     setEditingUserId(null)
     setEmail('')
     setPassword('')
     setIsAdmin(false)
-    setSelectedActions([])
+    setPlanId(defaultPlanId ?? activePlans[0]?.id ?? '')
     setMessage(null)
     setError(null)
     setPanelOpen(true)
@@ -95,7 +98,7 @@ export function AdminUsersPage() {
     setEmail(user.email)
     setPassword('')
     setIsAdmin(user.is_admin)
-    setSelectedActions(user.actions)
+    setPlanId(user.plan_id ?? '')
     setMessage(null)
     setError(null)
     setPanelOpen(true)
@@ -107,62 +110,53 @@ export function AdminUsersPage() {
     setEmail('')
     setPassword('')
     setIsAdmin(false)
-    setSelectedActions([])
+    setPlanId('')
   }
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
     setError(null)
     setMessage(null)
+    const resolvedPlanId = planId === '' ? null : Number(planId)
     try {
       if (editingUserId == null) {
         await adminApi.createUser({
           email,
           password,
           is_admin: isAdmin,
-          actions: selectedActions,
+          plan_id: resolvedPlanId,
         })
         setMessage(`Created user ${email}`)
       } else {
-        await adminApi.setUserActions(editingUserId, selectedActions)
         await adminApi.updateUser(editingUserId, {
           is_admin: isAdmin,
+          plan_id: resolvedPlanId,
           ...(password ? { password } : {}),
         })
         setMessage(`Updated user ${email}`)
       }
       closePanel()
-      const [userList, actionList] = await Promise.all([
+      const [userList, planList] = await Promise.all([
         adminApi.listUsers(),
-        adminApi.listActions(),
+        adminApi.listPlans(),
       ])
       setUsers(userList)
-      setActions(actionList)
+      setPlans(planList)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed')
     }
   }
 
-  const quickAssign = (preset: 'silo' | 'mulo' | 'both') => {
-    const silo = [
-      'pipeline:silo',
-      'module:upload',
-      'module:regularize',
-      'module:silo',
-    ]
-    const mulo = [
-      'pipeline:mulo',
-      'module:upload',
-      'module:regularize',
-      'module:recommender',
-      'module:trimmer',
-      'module:mulo',
-      'module:case_studies',
-    ]
-    if (preset === 'silo') setSelectedActions(silo)
-    else if (preset === 'mulo') setSelectedActions(mulo)
-    else setSelectedActions([...new Set([...silo, ...mulo])])
-  }
+  const planOptions = useMemo(() => {
+    const options = [...activePlans]
+    if (planId !== '') {
+      const current = plans.find((plan) => plan.id === planId)
+      if (current && !options.some((plan) => plan.id === current.id)) {
+        options.push(current)
+      }
+    }
+    return options.length > 0 ? options : plans
+  }, [plans, activePlans, planId])
 
   return (
     <div className="admin-fade-in space-y-6">
@@ -175,7 +169,7 @@ export function AdminUsersPage() {
             Users
           </h1>
           <p className="m-0 max-w-lg text-muted-text leading-relaxed">
-            Create accounts by email and assign actions for Single Loop and Multi Loop.
+            Create accounts and assign a plan. Module access comes from the plan.
           </p>
         </div>
         <button type="button" className={btnPrimary} onClick={openCreate}>
@@ -196,7 +190,7 @@ export function AdminUsersPage() {
           <input
             className={`${fieldInput} w-full pl-10`}
             type="search"
-            placeholder="Search by email or action…"
+            placeholder="Search by email, plan, or module…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             aria-label="Search users"
@@ -215,8 +209,8 @@ export function AdminUsersPage() {
             </p>
             <p className="m-0 text-sm text-muted-text">
               {query
-                ? 'Try a different email or action code.'
-                : 'Create the first account to grant pipeline access.'}
+                ? 'Try a different email or plan name.'
+                : 'Create the first account and assign a plan.'}
             </p>
             {!query && (
               <button type="button" className={btnPrimary} onClick={openCreate}>
@@ -233,7 +227,8 @@ export function AdminUsersPage() {
                   <th className="px-4 py-3 font-medium text-foreground-secondary">Email</th>
                   <th className="px-4 py-3 font-medium text-foreground-secondary">Role</th>
                   <th className="px-4 py-3 font-medium text-foreground-secondary">Status</th>
-                  <th className="px-4 py-3 font-medium text-foreground-secondary">Permissions</th>
+                  <th className="px-4 py-3 font-medium text-foreground-secondary">Plan</th>
+                  <th className="px-4 py-3 font-medium text-foreground-secondary">Modules</th>
                   <th className="px-4 py-3 font-medium text-foreground-secondary">Created</th>
                   <th className="px-4 py-3 text-right font-medium text-foreground-secondary">
                     <span className="sr-only">Actions</span>
@@ -268,6 +263,13 @@ export function AdminUsersPage() {
                         <span className="rounded-md bg-[var(--app-status-warning-bg)] px-2 py-0.5 text-xs font-medium text-[var(--app-status-warning-text)]">
                           Inactive
                         </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {user.plan_name ? (
+                        <span className="font-medium text-foreground">{user.plan_name}</span>
+                      ) : (
+                        <span className="text-muted-text">None</span>
                       )}
                     </td>
                     <td className="px-4 py-3">
@@ -380,54 +382,30 @@ export function AdminUsersPage() {
                   <span>Admin privileges</span>
                 </label>
 
-                <div className="mb-3">
-                  <div className="mb-2 text-sm font-medium text-foreground">Quick assign</div>
-                  <div className="flex flex-wrap gap-2">
-                    <button type="button" className={`${btnBase} ${btnCompact}`} onClick={() => quickAssign('silo')}>
-                      Single Loop
-                    </button>
-                    <button type="button" className={`${btnBase} ${btnCompact}`} onClick={() => quickAssign('mulo')}>
-                      Multi Loop
-                    </button>
-                    <button type="button" className={`${btnBase} ${btnCompact}`} onClick={() => quickAssign('both')}>
-                      Both
-                    </button>
-                  </div>
-                </div>
-
-                <fieldset className="mb-2 space-y-2 border-0 p-0">
-                  <legend className="mb-2 text-sm font-medium text-foreground">Actions</legend>
-                  <div className="max-h-56 space-y-1 overflow-y-auto rounded-xl border border-border p-2">
-                    {actions.map((action) => {
-                      const checked = selectedActions.includes(action.code)
-                      return (
-                        <label
-                          key={action.code}
-                          className={`flex cursor-pointer items-start gap-2.5 rounded-lg px-2.5 py-2 transition-colors ${
-                            checked
-                              ? 'bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)]'
-                              : 'hover:bg-surface-hover'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            className="mt-1"
-                            checked={checked}
-                            onChange={() => toggleAction(action.code)}
-                          />
-                          <span>
-                            <span className="block font-mono text-sm text-foreground">
-                              {action.code}
-                            </span>
-                            {action.description ? (
-                              <span className="text-xs text-muted-text">{action.description}</span>
-                            ) : null}
-                          </span>
-                        </label>
-                      )
-                    })}
-                  </div>
-                </fieldset>
+                <label className={fieldLabel}>
+                  <span>Plan</span>
+                  <select
+                    className={fieldInput}
+                    value={planId === '' ? '' : String(planId)}
+                    onChange={(e) =>
+                      setPlanId(e.target.value ? Number(e.target.value) : '')
+                    }
+                  >
+                    <option value="">No plan</option>
+                    {planOptions.map((plan) => (
+                      <option key={plan.id} value={plan.id}>
+                        {plan.name} ({plan.price === 0 ? 'Free' : `$${plan.price}`})
+                        {!plan.is_active ? ' — inactive' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {planId !== '' && (
+                  <p className="m-0 text-xs text-muted-text">
+                    Modules:{' '}
+                    {(plans.find((p) => p.id === planId)?.actions ?? []).join(', ') || 'None'}
+                  </p>
+                )}
               </div>
 
               <div className="flex flex-wrap gap-2 border-t border-border px-5 py-4">

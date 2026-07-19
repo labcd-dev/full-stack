@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  Package,
   Users,
   X,
 } from 'lucide-react'
@@ -15,6 +16,7 @@ import { btnBase, btnCompact } from '../../lib/classes'
 
 const navItems = [
   { to: '/admin', end: true, label: 'Overview', icon: LayoutDashboard },
+  { to: '/admin/plans', end: false, label: 'Plans', icon: Package },
   { to: '/admin/users', end: false, label: 'Users', icon: Users },
   { to: '/admin/projects', end: false, label: 'Projects', icon: FolderKanban },
 ] as const

@@ -49,7 +49,7 @@ export function RegisterPage() {
             Create account
           </h2>
           <p className={`${pageIntro} mt-2`}>
-            Register with your email. An admin can assign pipeline and module access afterward.
+            Register with your email. You receive the default plan set by an administrator.
           </p>
         </header>
 

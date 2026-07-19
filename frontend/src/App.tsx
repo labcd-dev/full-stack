@@ -7,6 +7,7 @@ import { AuthProvider } from './context/AuthContext'
 import { PipelineProvider } from './context/PipelineContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { AdminOverviewPage } from './pages/AdminOverviewPage'
+import { AdminPlansPage } from './pages/AdminPlansPage'
 import { AdminProjectDetailPage } from './pages/AdminProjectDetailPage'
 import { AdminProjectsPage } from './pages/AdminProjectsPage'
 import { AdminUsersPage } from './pages/AdminUsersPage'
@@ -48,6 +49,7 @@ export default function App() {
               <Route element={<ProtectedRoute />}>
                 <Route path="admin" element={<AdminLayout />}>
                   <Route index element={<AdminOverviewPage />} />
+                  <Route path="plans" element={<AdminPlansPage />} />
                   <Route path="users" element={<AdminUsersPage />} />
                   <Route path="projects" element={<AdminProjectsPage />} />
                   <Route path="projects/:projectId" element={<AdminProjectDetailPage />} />

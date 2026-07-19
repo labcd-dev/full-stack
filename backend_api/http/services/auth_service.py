@@ -13,6 +13,7 @@ from backend_api.db.models import Action, Plan, User
 from backend_api.http.config import (
     ADMIN_EMAIL,
     ADMIN_PASSWORD,
+    DEFAULT_LLM_MODELS,
     JWT_ALGORITHM,
     JWT_EXPIRE_MINUTES,
     JWT_SECRET,
@@ -63,15 +64,34 @@ MULO_ACTION_CODES = [
     "module:case_studies",
 ]
 
-DEFAULT_PLANS: list[tuple[str, str, Decimal, list[str]]] = [
-    ("Free", "Default plan for new registrations (no modules).", Decimal("0.00"), []),
-    ("Single Loop", "Single Loop (Silo) pipeline access.", Decimal("29.00"), SILO_ACTION_CODES),
-    ("Multi Loop", "Multi Loop (Mulo) pipeline access.", Decimal("49.00"), MULO_ACTION_CODES),
+DEFAULT_PLANS: list[tuple[str, str, Decimal, list[str], list[str]]] = [
+    (
+        "Free",
+        "Default plan for new registrations (no modules).",
+        Decimal("0.00"),
+        [],
+        ["gpt-4o-mini", "gpt-oss-120b"],
+    ),
+    (
+        "Single Loop",
+        "Single Loop (Silo) pipeline access.",
+        Decimal("29.00"),
+        SILO_ACTION_CODES,
+        list(DEFAULT_LLM_MODELS),
+    ),
+    (
+        "Multi Loop",
+        "Multi Loop (Mulo) pipeline access.",
+        Decimal("49.00"),
+        MULO_ACTION_CODES,
+        list(DEFAULT_LLM_MODELS),
+    ),
     (
         "Full Access",
         "Both Single Loop and Multi Loop pipelines.",
         Decimal("79.00"),
         sorted(set(SILO_ACTION_CODES + MULO_ACTION_CODES)),
+        list(DEFAULT_LLM_MODELS),
     ),
 ]
 
@@ -162,7 +182,7 @@ def _ensure_default_plans(db: Session) -> Plan:
     from backend_api.http.services import plan_service
 
     free_plan: Plan | None = None
-    for name, description, price, codes in DEFAULT_PLANS:
+    for name, description, price, codes, models in DEFAULT_PLANS:
         plan = plan_service.get_plan_by_name(db, name)
         if plan is None:
             plan = Plan(
@@ -170,6 +190,7 @@ def _ensure_default_plans(db: Session) -> Plan:
                 description=description,
                 price=price,
                 is_active=True,
+                allowed_models=plan_service.normalize_plan_models(models),
             )
             db.add(plan)
             db.flush()

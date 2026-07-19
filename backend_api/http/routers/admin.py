@@ -159,6 +159,7 @@ def create_plan(
             description=request.description,
             price=request.price,
             action_codes=request.actions,
+            models=request.models,
             is_active=request.is_active,
         )
     except ValueError as exc:
@@ -184,6 +185,7 @@ def update_plan(
             description=request.description,
             price=request.price,
             action_codes=request.actions,
+            models=request.models,
             is_active=request.is_active,
         )
     except ValueError as exc:

@@ -87,6 +87,7 @@ export const adminApi = {
     description?: string
     price?: number
     actions?: string[]
+    models?: string[]
     is_active?: boolean
   }) =>
     apiFetch<PlanInfo>('/admin/plans', {
@@ -100,6 +101,7 @@ export const adminApi = {
       description?: string
       price?: number
       actions?: string[]
+      models?: string[]
       is_active?: boolean
     },
   ) =>

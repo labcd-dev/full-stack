@@ -135,6 +135,7 @@ export interface PlanInfo {
   price: number
   is_active: boolean
   actions: string[]
+  models: string[]
   created_at: string
 }
 

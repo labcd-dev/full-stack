@@ -7,9 +7,20 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from backend_api.db.models import AppSetting, Plan, User
+from backend_api.http.config import DEFAULT_LLM_MODELS
 from backend_api.http.services.auth_service import ensure_actions
 
 DEFAULT_PLAN_SETTING_KEY = "default_plan_id"
+
+
+def normalize_plan_models(models: list[str] | None) -> list[str]:
+    """Keep known catalog models only, preserving DEFAULT_LLM_MODELS order."""
+    catalog = set(DEFAULT_LLM_MODELS)
+    selected = {item.strip() for item in (models or []) if item and item.strip()}
+    unknown = sorted(selected - catalog)
+    if unknown:
+        raise ValueError(f"Unknown model(s): {', '.join(unknown)}")
+    return [model for model in DEFAULT_LLM_MODELS if model in selected]
 
 
 def get_setting(db: Session, key: str) -> str | None:
@@ -76,6 +87,7 @@ def create_plan(
     description: str = "",
     price: Decimal | float | str = Decimal("0.00"),
     action_codes: list[str] | None = None,
+    models: list[str] | None = None,
     is_active: bool = True,
 ) -> Plan:
     normalized = name.strip()
@@ -88,6 +100,7 @@ def create_plan(
         description=description.strip(),
         price=Decimal(str(price)),
         is_active=is_active,
+        allowed_models=normalize_plan_models(models),
     )
     db.add(plan)
     db.flush()
@@ -106,6 +119,7 @@ def update_plan(
     description: str | None = None,
     price: Decimal | float | str | None = None,
     action_codes: list[str] | None = None,
+    models: list[str] | None = None,
     is_active: bool | None = None,
 ) -> Plan:
     if name is not None:
@@ -126,6 +140,8 @@ def update_plan(
             raise ValueError("Cannot deactivate the default registration plan")
     if action_codes is not None:
         plan.actions = ensure_actions(db, action_codes)
+    if models is not None:
+        plan.allowed_models = normalize_plan_models(models)
     db.add(plan)
     db.commit()
     db.refresh(plan)
@@ -166,5 +182,6 @@ def plan_out_dict(plan: Plan) -> dict:
         "price": float(plan.price),
         "is_active": plan.is_active,
         "actions": plan.action_codes(),
+        "models": plan.model_ids(),
         "created_at": plan.created_at,
     }

@@ -93,6 +93,19 @@ def require_action(action_code: str):
     return _dependency
 
 
+def assert_model_allowed(user: User, model: str | None) -> None:
+    """Reject models that are not entitled on the user's plan."""
+    if not model or not str(model).strip():
+        return
+    normalized = str(model).strip()
+    if user.has_model(normalized):
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=f"Model not allowed for your plan: {normalized}",
+    )
+
+
 def assert_job_access(job: Job, user: User) -> None:
     if user.is_admin:
         return

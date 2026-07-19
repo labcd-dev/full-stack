@@ -9,7 +9,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { adminApi } from '../api/endpoints'
+import { adminApi, healthApi } from '../api/endpoints'
 import type { ActionInfo, PlanInfo } from '../api/types'
 import { StatusMessage } from '../components/StatusMessage'
 import { useAuth } from '../context/AuthContext'
@@ -27,6 +27,7 @@ export function AdminPlansPage() {
   const { user: currentUser } = useAuth()
   const [plans, setPlans] = useState<PlanInfo[]>([])
   const [actions, setActions] = useState<ActionInfo[]>([])
+  const [catalogModels, setCatalogModels] = useState<string[]>([])
   const [defaultPlanId, setDefaultPlanId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -40,16 +41,19 @@ export function AdminPlansPage() {
   const [price, setPrice] = useState('0')
   const [isActive, setIsActive] = useState(true)
   const [selectedActions, setSelectedActions] = useState<string[]>([])
+  const [selectedModels, setSelectedModels] = useState<string[]>([])
 
   const reload = async () => {
-    const [planList, actionList, defaultPlan] = await Promise.all([
+    const [planList, actionList, defaultPlan, models] = await Promise.all([
       adminApi.listPlans(),
       adminApi.listActions(),
       adminApi.getDefaultPlan(),
+      healthApi.models(),
     ])
     setPlans(planList)
     setActions(actionList)
     setDefaultPlanId(defaultPlan.plan_id)
+    setCatalogModels(models.llm_models)
   }
 
   useEffect(() => {
@@ -75,7 +79,8 @@ export function AdminPlansPage() {
       (plan) =>
         plan.name.toLowerCase().includes(q) ||
         plan.description.toLowerCase().includes(q) ||
-        plan.actions.some((code) => code.toLowerCase().includes(q)),
+        plan.actions.some((code) => code.toLowerCase().includes(q)) ||
+        (plan.models ?? []).some((model) => model.toLowerCase().includes(q)),
     )
   }, [plans, query])
 
@@ -89,6 +94,12 @@ export function AdminPlansPage() {
     )
   }
 
+  const toggleModel = (model: string) => {
+    setSelectedModels((prev) =>
+      prev.includes(model) ? prev.filter((item) => item !== model) : [...prev, model],
+    )
+  }
+
   const openCreate = () => {
     setEditingPlanId(null)
     setName('')
@@ -96,6 +107,7 @@ export function AdminPlansPage() {
     setPrice('0')
     setIsActive(true)
     setSelectedActions([])
+    setSelectedModels([])
     setMessage(null)
     setError(null)
     setPanelOpen(true)
@@ -108,6 +120,7 @@ export function AdminPlansPage() {
     setPrice(String(plan.price))
     setIsActive(plan.is_active)
     setSelectedActions(plan.actions)
+    setSelectedModels(plan.models ?? [])
     setMessage(null)
     setError(null)
     setPanelOpen(true)
@@ -134,6 +147,7 @@ export function AdminPlansPage() {
           description,
           price: parsedPrice,
           actions: selectedActions,
+          models: selectedModels,
           is_active: isActive,
         })
         setMessage(`Created plan ${name}`)
@@ -143,6 +157,7 @@ export function AdminPlansPage() {
           description,
           price: parsedPrice,
           actions: selectedActions,
+          models: selectedModels,
           is_active: isActive,
         })
         setMessage(`Updated plan ${name}`)
@@ -198,8 +213,8 @@ export function AdminPlansPage() {
             Plans
           </h1>
           <p className="m-0 max-w-lg text-muted-text leading-relaxed">
-            Define priced plans and attach modules. New users receive the default plan on
-            registration.
+            Define priced plans and attach modules and AI models. New users receive the
+            default plan on registration.
           </p>
         </div>
         <button type="button" className={btnPrimary} onClick={openCreate}>
@@ -220,7 +235,7 @@ export function AdminPlansPage() {
           <input
             className={`${fieldInput} w-full pl-10`}
             type="search"
-            placeholder="Search by name or module…"
+            placeholder="Search by name, module, or model…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             aria-label="Search plans"
@@ -235,13 +250,14 @@ export function AdminPlansPage() {
           </p>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-border-subtle">
-            <table className="admin-users-table w-full min-w-[720px] border-collapse text-sm">
+            <table className="admin-users-table w-full min-w-[860px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-border bg-surface-muted/80 text-left">
                   <th className="px-4 py-3 font-medium text-foreground-secondary">Plan</th>
                   <th className="px-4 py-3 font-medium text-foreground-secondary">Price</th>
                   <th className="px-4 py-3 font-medium text-foreground-secondary">Status</th>
                   <th className="px-4 py-3 font-medium text-foreground-secondary">Modules</th>
+                  <th className="px-4 py-3 font-medium text-foreground-secondary">Models</th>
                   <th className="px-4 py-3 text-right font-medium text-foreground-secondary">
                     <span className="sr-only">Actions</span>
                   </th>
@@ -250,6 +266,7 @@ export function AdminPlansPage() {
               <tbody>
                 {filteredPlans.map((plan) => {
                   const isDefault = plan.id === defaultPlanId
+                  const planModels = plan.models ?? []
                   return (
                     <tr
                       key={plan.id}
@@ -285,13 +302,29 @@ export function AdminPlansPage() {
                         {plan.actions.length === 0 ? (
                           <span className="text-muted-text">None</span>
                         ) : (
-                          <div className="flex max-w-md flex-wrap gap-1.5">
+                          <div className="flex max-w-xs flex-wrap gap-1.5">
                             {plan.actions.map((code) => (
                               <span
                                 key={code}
                                 className="rounded-md bg-surface-elevated px-1.5 py-0.5 font-mono text-[0.68rem] text-foreground-secondary ring-1 ring-border-subtle"
                               >
                                 {code}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {planModels.length === 0 ? (
+                          <span className="text-muted-text">None</span>
+                        ) : (
+                          <div className="flex max-w-xs flex-wrap gap-1.5">
+                            {planModels.map((model) => (
+                              <span
+                                key={model}
+                                className="rounded-md bg-surface-elevated px-1.5 py-0.5 font-mono text-[0.68rem] text-foreground-secondary ring-1 ring-border-subtle"
+                              >
+                                {model}
                               </span>
                             ))}
                           </div>
@@ -445,6 +478,43 @@ export function AdminPlansPage() {
                         </label>
                       )
                     })}
+                  </div>
+                </fieldset>
+
+                <fieldset className="mb-2 space-y-2 border-0 p-0">
+                  <legend className="mb-2 text-sm font-medium text-foreground">
+                    AI models
+                  </legend>
+                  <p className="m-0 mb-2 text-xs text-muted-text">
+                    Users on this plan only see and can run the selected models.
+                  </p>
+                  <div className="max-h-56 space-y-1 overflow-y-auto rounded-xl border border-border p-2">
+                    {catalogModels.length === 0 ? (
+                      <p className="m-0 px-2.5 py-2 text-sm text-muted-text">
+                        No models available
+                      </p>
+                    ) : (
+                      catalogModels.map((model) => {
+                        const checked = selectedModels.includes(model)
+                        return (
+                          <label
+                            key={model}
+                            className={`flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors ${
+                              checked
+                                ? 'bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)]'
+                                : 'hover:bg-surface-hover'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleModel(model)}
+                            />
+                            <span className="font-mono text-sm text-foreground">{model}</span>
+                          </label>
+                        )
+                      })
+                    )}
                   </div>
                 </fieldset>
               </div>

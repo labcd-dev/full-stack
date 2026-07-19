@@ -36,7 +36,7 @@ JsonDict = JSON().with_variant(JSONB(), "postgresql")
 
 
 class Plan(Base):
-    """Subscription-style access plan: price + allowed module/pipeline actions."""
+    """Subscription-style access plan: price + allowed modules + LLM models."""
 
     __tablename__ = "plans"
     __table_args__ = (UniqueConstraint("name", name="uq_plans_name"),)
@@ -46,6 +46,7 @@ class Plan(Base):
     description: Mapped[str] = mapped_column(Text, default="", nullable=False)
     price: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0.00"), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    allowed_models: Mapped[list[Any]] = mapped_column(JsonDict, default=list, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -66,6 +67,10 @@ class Plan(Base):
 
     def action_codes(self) -> list[str]:
         return sorted(action.code for action in self.actions)
+
+    def model_ids(self) -> list[str]:
+        raw = self.allowed_models or []
+        return [str(item) for item in raw if str(item).strip()]
 
 
 class User(Base):
@@ -111,6 +116,16 @@ class User(Base):
         if self.is_admin:
             return True
         return code in self.action_codes()
+
+    def model_ids(self) -> list[str]:
+        if self.plan is None:
+            return []
+        return self.plan.model_ids()
+
+    def has_model(self, model: str) -> bool:
+        if self.is_admin:
+            return True
+        return model in self.model_ids()
 
 
 class Action(Base):

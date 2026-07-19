@@ -59,12 +59,10 @@ def _migrate_schema() -> None:
     if "plan_id" not in columns:
         statements.append("ALTER TABLE users ADD COLUMN plan_id INTEGER")
 
-    if not statements:
-        return
-
-    with engine.begin() as conn:
-        for statement in statements:
-            conn.execute(text(statement))
+    if statements:
+        with engine.begin() as conn:
+            for statement in statements:
+                conn.execute(text(statement))
 
     # Add FK after column exists (idempotent enough for Postgres).
     if "plan_id" not in columns and "plans" in set(inspect(engine).get_table_names()):
@@ -79,6 +77,59 @@ def _migrate_schema() -> None:
                     "ALTER TABLE users ADD CONSTRAINT users_plan_id_fkey "
                     "FOREIGN KEY (plan_id) REFERENCES plans(id) ON DELETE SET NULL"
                 )
+            )
+
+    _migrate_plan_allowed_models()
+
+
+def _migrate_plan_allowed_models() -> None:
+    """Add plans.allowed_models and backfill once when the column is first added."""
+    import json
+
+    from sqlalchemy import inspect
+
+    from backend_api.http.config import DEFAULT_LLM_MODELS
+
+    inspector = inspect(engine)
+    if "plans" not in inspector.get_table_names():
+        return
+
+    plan_columns = {col["name"] for col in inspector.get_columns("plans")}
+    if "allowed_models" in plan_columns:
+        return
+
+    dialect = engine.dialect.name
+    col_type = "JSONB" if dialect == "postgresql" else "JSON"
+    catalog_json = json.dumps(list(DEFAULT_LLM_MODELS))
+    free_models_json = json.dumps(["gpt-4o-mini", "gpt-oss-120b"])
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                f"ALTER TABLE plans ADD COLUMN allowed_models {col_type} "
+                "NOT NULL DEFAULT '[]'"
+            )
+        )
+        # Existing plans keep full catalog access until an admin restricts them.
+        if dialect == "postgresql":
+            conn.execute(
+                text("UPDATE plans SET allowed_models = CAST(:models AS jsonb)"),
+                {"models": catalog_json},
+            )
+            conn.execute(
+                text(
+                    "UPDATE plans SET allowed_models = CAST(:models AS jsonb) "
+                    "WHERE name = 'Free'"
+                ),
+                {"models": free_models_json},
+            )
+        else:
+            conn.execute(
+                text("UPDATE plans SET allowed_models = :models"),
+                {"models": catalog_json},
+            )
+            conn.execute(
+                text("UPDATE plans SET allowed_models = :models WHERE name = 'Free'"),
+                {"models": free_models_json},
             )
 
 

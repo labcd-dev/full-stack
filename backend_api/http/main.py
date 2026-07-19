@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from backend_api.db.session import init_db
 from backend_api.http.config import API_PREFIX, CORS_ORIGINS, UPLOADS_DIR
+from backend_api.http.middleware.request_metrics import RequestMetricsMiddleware
 from backend_api.http.routers import (
     admin,
     auth,
@@ -45,6 +46,8 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    # Registered after CORS so it is outermost and times the full request cycle.
+    app.add_middleware(RequestMetricsMiddleware)
 
     app.include_router(health.router, prefix=API_PREFIX)
     app.include_router(auth.router, prefix=API_PREFIX)

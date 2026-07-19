@@ -172,3 +172,45 @@ export interface ProjectDetail extends ProjectSummary {
   results?: Record<string, unknown> | null
 }
 
+export interface MemoryMetrics {
+  used_bytes: number
+  total_bytes: number
+  percent: number
+}
+
+export interface DiskMetrics {
+  used_bytes: number
+  total_bytes: number
+  percent: number
+}
+
+export interface NetworkMetrics {
+  bytes_sent: number
+  bytes_recv: number
+  sent_rate_bps: number
+  recv_rate_bps: number
+}
+
+export interface ApiMetrics {
+  avg_latency_ms: number
+  p50_latency_ms: number
+  p95_latency_ms: number
+  error_rate_percent: number
+  requests_in_window: number
+}
+
+export interface MonitoringSnapshot {
+  collected_at: string
+  uptime_seconds: number
+  cpu_percent: number
+  memory: MemoryMetrics
+  disk: DiskMetrics
+  network: NetworkMetrics
+  api: ApiMetrics
+}
+
+export interface MonitoringResponse {
+  current: MonitoringSnapshot
+  history: MonitoringSnapshot[]
+}
+

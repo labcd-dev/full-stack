@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Pencil, Trash2 } from 'lucide-react'
+import { Link, useParams } from 'react-router-dom'
+import { ArrowLeft, Pencil } from 'lucide-react'
 import { projectsApi } from '../api/endpoints'
 import type { ProjectDetail } from '../api/types'
 import { CodePreview } from '../components/CodePreview'
@@ -20,7 +20,6 @@ import { pipelineLabel, statusBadgeClass } from '../lib/projectLabels'
 
 export function ProjectDetailPage() {
   const { projectId } = useParams()
-  const navigate = useNavigate()
   const id = Number(projectId)
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -58,17 +57,6 @@ export function ProjectDetailPage() {
       setRenaming(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to rename project')
-    }
-  }
-
-  const handleDelete = async () => {
-    if (!project) return
-    if (!window.confirm('Delete this project? This cannot be undone.')) return
-    try {
-      await projectsApi.delete(project.id)
-      navigate('/projects', { replace: true })
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete project')
     }
   }
 
@@ -136,10 +124,6 @@ export function ProjectDetailPage() {
               <button type="button" className={btnBase} onClick={() => setRenaming(true)}>
                 <Pencil className="size-3.5" />
                 Rename
-              </button>
-              <button type="button" className={btnBase} onClick={() => void handleDelete()}>
-                <Trash2 className="size-3.5" />
-                Delete
               </button>
             </div>
           </div>

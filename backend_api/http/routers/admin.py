@@ -17,8 +17,9 @@ from backend_api.http.schemas.auth import (
     UpdateUserRequest,
     UserOut,
 )
+from backend_api.http.schemas.monitoring import MonitoringResponse
 from backend_api.http.schemas.projects import ProjectDetail, ProjectSummary, ProjectUpdateRequest
-from backend_api.http.services import plan_service, project_service
+from backend_api.http.services import monitoring_service, plan_service, project_service
 from backend_api.http.services.auth_service import (
     create_user,
     get_user_by_email,
@@ -32,6 +33,11 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 def _plan_out(plan) -> PlanOut:
     return PlanOut(**plan_service.plan_out_dict(plan))
+
+
+@router.get("/monitoring", response_model=MonitoringResponse)
+def get_monitoring(_: User = Depends(require_admin)) -> MonitoringResponse:
+    return MonitoringResponse(**monitoring_service.collect_snapshot())
 
 
 @router.get("/actions", response_model=list[ActionOut])

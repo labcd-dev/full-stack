@@ -8,6 +8,7 @@ import type {
   JobResponse,
   JobStatusResponse,
   ModelsResponse,
+  MonitoringResponse,
   MuloDesignerStateResponse,
   MuloSimulateResponse,
   PlanInfo,
@@ -58,6 +59,7 @@ export const authApi = {
 }
 
 export const adminApi = {
+  getMonitoring: () => apiFetch<MonitoringResponse>('/admin/monitoring'),
   listActions: () => apiFetch<ActionInfo[]>('/admin/actions'),
   listPlans: (params?: { active_only?: boolean }) => {
     const query = new URLSearchParams()
@@ -172,8 +174,6 @@ export const projectsApi = {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
-  delete: (projectId: number) =>
-    apiFetch<void>(`/projects/${projectId}`, { method: 'DELETE' }),
 }
 
 export const healthApi = {

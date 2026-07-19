@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { FolderOpen, Search, Trash2 } from 'lucide-react'
+import { FolderOpen, Search } from 'lucide-react'
 import { projectsApi } from '../api/endpoints'
 import type { ProjectSummary } from '../api/types'
 import { StatusMessage } from '../components/StatusMessage'
@@ -50,16 +50,6 @@ export function ProjectsPage() {
       )
     })
   }, [projects, query, filter])
-
-  const handleDelete = async (projectId: number) => {
-    if (!window.confirm('Delete this project? This cannot be undone.')) return
-    try {
-      await projectsApi.delete(projectId)
-      setProjects((prev) => prev.filter((p) => p.id !== projectId))
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete project')
-    }
-  }
 
   return (
     <section className={pageSection}>
@@ -149,15 +139,6 @@ export function ProjectsPage() {
                 <Link to={`/projects/${project.id}`} className={`${btnBase} ${btnCompact}`}>
                   View
                 </Link>
-                <button
-                  type="button"
-                  className={`${btnBase} ${btnCompact}`}
-                  onClick={() => void handleDelete(project.id)}
-                  title="Delete project"
-                >
-                  <Trash2 className="size-3.5" />
-                  Delete
-                </button>
               </div>
             </li>
           ))}

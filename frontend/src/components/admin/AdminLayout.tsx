@@ -22,7 +22,7 @@ const navItems = [
   { to: '/admin/users', end: false, label: 'Users', icon: Users },
   { to: '/admin/projects', end: false, label: 'Projects', icon: FolderKanban },
   { to: '/admin/monitoring', end: false, label: 'Monitoring', icon: Activity },
-  { to: '/admin/errors', end: false, label: 'Error Tracking system', icon: Bug },
+  { to: '/admin/errors', end: false, label: 'Error Tracking', icon: Bug },
 ] as const
 
 export function AdminLayout() {

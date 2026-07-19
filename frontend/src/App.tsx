@@ -8,6 +8,7 @@ import { PipelineProvider } from './context/PipelineContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { AdminOverviewPage } from './pages/AdminOverviewPage'
 import { AdminMonitoringPage } from './pages/AdminMonitoringPage'
+import { AdminErrorsPage } from './pages/AdminErrorsPage'
 import { AdminPlansPage } from './pages/AdminPlansPage'
 import { AdminProjectDetailPage } from './pages/AdminProjectDetailPage'
 import { AdminProjectsPage } from './pages/AdminProjectsPage'
@@ -51,6 +52,7 @@ export default function App() {
                 <Route path="admin" element={<AdminLayout />}>
                   <Route index element={<AdminOverviewPage />} />
                   <Route path="monitoring" element={<AdminMonitoringPage />} />
+                  <Route path="errors" element={<AdminErrorsPage />} />
                   <Route path="plans" element={<AdminPlansPage />} />
                   <Route path="users" element={<AdminUsersPage />} />
                   <Route path="projects" element={<AdminProjectsPage />} />

@@ -1,6 +1,7 @@
 """Admin routes for managing users, plans, actions, and projects."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from backend_api.db.models import Action, User
@@ -17,9 +18,19 @@ from backend_api.http.schemas.auth import (
     UpdateUserRequest,
     UserOut,
 )
+from backend_api.http.schemas.error_tracking import (
+    ErrorEventOut,
+    ErrorTrackingSettings,
+    ErrorTrackingSettingsUpdate,
+)
 from backend_api.http.schemas.monitoring import MonitoringResponse
 from backend_api.http.schemas.projects import ProjectDetail, ProjectSummary, ProjectUpdateRequest
-from backend_api.http.services import monitoring_service, plan_service, project_service
+from backend_api.http.services import (
+    error_tracking_service,
+    monitoring_service,
+    plan_service,
+    project_service,
+)
 from backend_api.http.services.auth_service import (
     create_user,
     get_user_by_email,
@@ -38,6 +49,83 @@ def _plan_out(plan) -> PlanOut:
 @router.get("/monitoring", response_model=MonitoringResponse)
 def get_monitoring(_: User = Depends(require_admin)) -> MonitoringResponse:
     return MonitoringResponse(**monitoring_service.collect_snapshot())
+
+
+@router.get("/errors/settings", response_model=ErrorTrackingSettings)
+def get_error_tracking_settings(
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> ErrorTrackingSettings:
+    cfg = error_tracking_service.refresh_config_cache(db)
+    return ErrorTrackingSettings(
+        enabled=cfg.enabled,
+        frontend=cfg.frontend,
+        backend=cfg.backend,
+        api=cfg.api,
+    )
+
+
+@router.patch("/errors/settings", response_model=ErrorTrackingSettings)
+def update_error_tracking_settings(
+    request: ErrorTrackingSettingsUpdate,
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> ErrorTrackingSettings:
+    cfg = error_tracking_service.update_settings(
+        db,
+        enabled=request.enabled,
+        frontend=request.frontend,
+        backend=request.backend,
+        api=request.api,
+    )
+    return ErrorTrackingSettings(
+        enabled=cfg.enabled,
+        frontend=cfg.frontend,
+        backend=cfg.backend,
+        api=cfg.api,
+    )
+
+
+@router.get("/errors", response_model=list[ErrorEventOut])
+def list_error_events(
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+    source: str | None = Query(default=None),
+    status_code: int | None = Query(default=None),
+    q: str | None = Query(default=None),
+    limit: int = Query(default=200, ge=1, le=1000),
+) -> list[ErrorEventOut]:
+    events = error_tracking_service.list_errors(
+        db,
+        source=source,
+        status_code=status_code,
+        q=q,
+        limit=limit,
+    )
+    return [ErrorEventOut(**error_tracking_service.event_to_dict(e)) for e in events]
+
+
+@router.get("/errors/export.csv")
+def export_error_events_csv(
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+    source: str | None = Query(default=None),
+    status_code: int | None = Query(default=None),
+    q: str | None = Query(default=None),
+    limit: int = Query(default=5000, ge=1, le=10000),
+) -> StreamingResponse:
+    content = error_tracking_service.export_csv(
+        db,
+        source=source,
+        status_code=status_code,
+        q=q,
+        limit=limit,
+    )
+    return StreamingResponse(
+        iter([content]),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="error_events.csv"'},
+    )
 
 
 @router.get("/actions", response_model=list[ActionOut])

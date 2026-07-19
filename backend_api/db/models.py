@@ -138,6 +138,34 @@ class AppSetting(Base):
     value: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
 
+class ErrorEvent(Base):
+    """Persisted application / API / frontend error for admin review."""
+
+    __tablename__ = "error_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    stack_trace: Mapped[str | None] = mapped_column(Text, nullable=True)
+    path: Mapped[str | None] = mapped_column(String(512), nullable=True, index=True)
+    method: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    status_code: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    user_agent: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    page_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    extra: Mapped[dict[str, Any] | None] = mapped_column(JsonDict, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+        index=True,
+    )
+
+
 class Project(Base):
     """Persisted Single Loop / Multi Loop design session for a user."""
 

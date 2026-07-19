@@ -214,3 +214,27 @@ export interface MonitoringResponse {
   history: MonitoringSnapshot[]
 }
 
+export interface ErrorTrackingSettings {
+  enabled: boolean
+  frontend: boolean
+  backend: boolean
+  api: boolean
+}
+
+export type ErrorEventSource = 'frontend' | 'backend' | 'api'
+
+export interface ErrorEvent {
+  id: number
+  source: ErrorEventSource | string
+  message: string
+  stack_trace: string | null
+  path: string | null
+  method: string | null
+  status_code: number | null
+  user_id: number | null
+  user_agent: string | null
+  page_url: string | null
+  extra: Record<string, unknown> | null
+  created_at: string | null
+}
+

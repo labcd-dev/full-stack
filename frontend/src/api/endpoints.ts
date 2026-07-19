@@ -1,10 +1,12 @@
-import { apiFetch, artifactUrl } from './client'
+import { apiFetch, artifactUrl, getAuthToken } from './client'
 import type {
   ActionInfo,
   ArtifactResponse,
   AuthUser,
   CaseStudiesResponse,
   DefaultPlanInfo,
+  ErrorEvent,
+  ErrorTrackingSettings,
   JobResponse,
   JobStatusResponse,
   ModelsResponse,
@@ -22,6 +24,19 @@ import type {
   TrimmerArtifactsResponse,
   UploadResponse,
 } from './types'
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
+
+function buildQuery(params?: Record<string, string | number | undefined | null>): string {
+  const query = new URLSearchParams()
+  if (!params) return ''
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null || value === '') continue
+    query.set(key, String(value))
+  }
+  const suffix = query.toString()
+  return suffix ? `?${suffix}` : ''
+}
 
 export const authApi = {
   login: (body: { email: string; password: string }) =>
@@ -143,6 +158,48 @@ export const adminApi = {
     }),
   deleteProject: (projectId: number) =>
     apiFetch<void>(`/admin/projects/${projectId}`, { method: 'DELETE' }),
+  getErrorTrackingSettings: () =>
+    apiFetch<ErrorTrackingSettings>('/admin/errors/settings'),
+  updateErrorTrackingSettings: (body: Partial<ErrorTrackingSettings>) =>
+    apiFetch<ErrorTrackingSettings>('/admin/errors/settings', {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  listErrors: (params?: {
+    source?: string
+    status_code?: number
+    q?: string
+    limit?: number
+  }) =>
+    apiFetch<ErrorEvent[]>(
+      `/admin/errors${buildQuery({
+        source: params?.source,
+        status_code: params?.status_code,
+        q: params?.q,
+        limit: params?.limit,
+      })}`,
+    ),
+  downloadErrorsCsv: async (params?: {
+    source?: string
+    status_code?: number
+    q?: string
+    limit?: number
+  }) => {
+    const token = getAuthToken()
+    const suffix = buildQuery({
+      source: params?.source,
+      status_code: params?.status_code,
+      q: params?.q,
+      limit: params?.limit,
+    })
+    const response = await fetch(`${API_BASE}/admin/errors/export.csv${suffix}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    if (!response.ok) {
+      throw new Error('Failed to download CSV')
+    }
+    return response.blob()
+  },
 }
 
 export const projectsApi = {

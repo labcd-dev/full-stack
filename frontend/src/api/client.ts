@@ -31,11 +31,28 @@ async function parseError(response: Response): Promise<string> {
   }
 }
 
+function reportApiFailure(path: string, method: string, status: number, message: string): void {
+  if (path.startsWith('/errors')) return
+  // Lazy import avoids circular dependency with errorTracking → client.
+  void import('../lib/errorTracking').then(({ reportFrontendError, shouldReportFrontendErrors }) => {
+    if (!shouldReportFrontendErrors()) return
+    reportFrontendError({
+      message: `API ${status}: ${message}`,
+      path,
+      method,
+      status_code: status,
+      page_url: window.location.href,
+      extra: { type: 'api_client' },
+    })
+  })
+}
+
 export async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
   const token = getAuthToken()
+  const method = (options.method ?? 'GET').toUpperCase()
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
@@ -50,14 +67,16 @@ export async function apiFetch<T>(
   }
 
   if (!response.ok) {
-    throw new ApiError(response.status, await parseError(response))
+    const message = await parseError(response)
+    reportApiFailure(path, method, response.status, message)
+    throw new ApiError(response.status, message)
   }
 
   if (response.status === 204) {
     return undefined as T
   }
 
-  return response.json() as Promise<T>
+  return response.json() as T
 }
 
 export function artifactUrl(jobId: string, filename: string): string {

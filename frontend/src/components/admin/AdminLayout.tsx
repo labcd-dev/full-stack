@@ -3,6 +3,7 @@ import { Link, Navigate, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   Activity,
   ArrowLeft,
+  Bug,
   FolderKanban,
   LayoutDashboard,
   LogOut,
@@ -17,10 +18,11 @@ import { btnBase, btnCompact } from '../../lib/classes'
 
 const navItems = [
   { to: '/admin', end: true, label: 'Overview', icon: LayoutDashboard },
-  { to: '/admin/monitoring', end: false, label: 'Monitoring', icon: Activity },
   { to: '/admin/plans', end: false, label: 'Plans', icon: Package },
   { to: '/admin/users', end: false, label: 'Users', icon: Users },
   { to: '/admin/projects', end: false, label: 'Projects', icon: FolderKanban },
+  { to: '/admin/monitoring', end: false, label: 'Monitoring', icon: Activity },
+  { to: '/admin/errors', end: false, label: 'Error Tracking system', icon: Bug },
 ] as const
 
 export function AdminLayout() {

@@ -56,6 +56,25 @@ def get_current_user(
     return _load_user_from_token(token, db)
 
 
+def get_optional_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    access_token: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> User | None:
+    """Return the current user when a valid token is present; otherwise None."""
+    token: str | None = None
+    if credentials is not None and credentials.scheme.lower() == "bearer":
+        token = credentials.credentials
+    elif access_token:
+        token = access_token
+    if not token:
+        return None
+    try:
+        return _load_user_from_token(token, db)
+    except HTTPException:
+        return None
+
+
 def require_admin(user: User = Depends(get_current_user)) -> User:
     if not user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")

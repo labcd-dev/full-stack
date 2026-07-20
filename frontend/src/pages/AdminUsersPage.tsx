@@ -1,6 +1,7 @@
-import { Navigate } from 'react-router-dom'
+import { Navigate, Link } from 'react-router-dom'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
+  Eye,
   Pencil,
   Plus,
   Search,
@@ -10,8 +11,10 @@ import {
 } from 'lucide-react'
 import { adminApi } from '../api/endpoints'
 import type { AuthUser, PlanInfo } from '../api/types'
+import { AdminDownloadCsvButton } from '../components/admin/AdminDownloadCsvButton'
 import { StatusMessage } from '../components/StatusMessage'
 import { useAuth } from '../context/AuthContext'
+import { downloadCsv } from '../lib/downloadCsv'
 import {
   btnBase,
   btnCompact,
@@ -172,10 +175,23 @@ export function AdminUsersPage() {
             Create accounts and assign a plan. Module access comes from the plan.
           </p>
         </div>
-        <button type="button" className={btnPrimary} onClick={openCreate}>
-          <Plus className="size-4" aria-hidden />
-          New user
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <AdminDownloadCsvButton
+            onClick={async () => {
+              setError(null)
+              try {
+                await downloadCsv(() => adminApi.downloadUsersCsv(), 'users.csv')
+              } catch (err) {
+                setError(err instanceof Error ? err.message : 'Failed to download CSV')
+              }
+            }}
+            disabled={loading}
+          />
+          <button type="button" className={btnPrimary} onClick={openCreate}>
+            <Plus className="size-4" aria-hidden />
+            New user
+          </button>
+        </div>
       </header>
 
       {error && !panelOpen && <StatusMessage type="error" message={error} />}
@@ -241,7 +257,14 @@ export function AdminUsersPage() {
                     key={user.id}
                     className="border-b border-border-subtle transition-colors last:border-b-0 hover:bg-surface-hover/50"
                   >
-                    <td className="px-4 py-3 font-medium text-foreground">{user.email}</td>
+                    <td className="px-4 py-3 font-medium text-foreground">
+                      <Link
+                        to={`/admin/users/${user.id}`}
+                        className="text-foreground hover:text-primary"
+                      >
+                        {user.email}
+                      </Link>
+                    </td>
                     <td className="px-4 py-3">
                       {user.is_admin ? (
                         <span className="inline-flex items-center gap-1 rounded-md bg-[color-mix(in_srgb,var(--app-primary)_14%,transparent)] px-2 py-0.5 text-xs font-semibold text-primary">
@@ -296,14 +319,23 @@ export function AdminUsersPage() {
                       })}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        className={`${btnBase} ${btnCompact}`}
-                        onClick={() => startEdit(user)}
-                      >
-                        <Pencil className="size-3.5" aria-hidden />
-                        Edit
-                      </button>
+                      <div className="flex justify-end gap-2">
+                        <Link
+                          to={`/admin/users/${user.id}`}
+                          className={`${btnBase} ${btnCompact}`}
+                        >
+                          <Eye className="size-3.5" aria-hidden />
+                          View
+                        </Link>
+                        <button
+                          type="button"
+                          className={`${btnBase} ${btnCompact}`}
+                          onClick={() => startEdit(user)}
+                        >
+                          <Pencil className="size-3.5" aria-hidden />
+                          Edit
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

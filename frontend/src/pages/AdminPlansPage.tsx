@@ -11,8 +11,10 @@ import {
 } from 'lucide-react'
 import { adminApi, healthApi } from '../api/endpoints'
 import type { ActionInfo, PlanInfo } from '../api/types'
+import { AdminDownloadCsvButton } from '../components/admin/AdminDownloadCsvButton'
 import { StatusMessage } from '../components/StatusMessage'
 import { useAuth } from '../context/AuthContext'
+import { downloadCsv } from '../lib/downloadCsv'
 import {
   btnBase,
   btnCompact,
@@ -217,10 +219,23 @@ export function AdminPlansPage() {
             default plan on registration.
           </p>
         </div>
-        <button type="button" className={btnPrimary} onClick={openCreate}>
-          <Plus className="size-4" aria-hidden />
-          New plan
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <AdminDownloadCsvButton
+            onClick={async () => {
+              setError(null)
+              try {
+                await downloadCsv(() => adminApi.downloadPlansCsv(), 'plans.csv')
+              } catch (err) {
+                setError(err instanceof Error ? err.message : 'Failed to download CSV')
+              }
+            }}
+            disabled={loading}
+          />
+          <button type="button" className={btnPrimary} onClick={openCreate}>
+            <Plus className="size-4" aria-hidden />
+            New plan
+          </button>
+        </div>
       </header>
 
       {error && !panelOpen && <StatusMessage type="error" message={error} />}

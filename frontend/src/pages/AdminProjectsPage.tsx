@@ -3,7 +3,9 @@ import { Link } from 'react-router-dom'
 import { FolderKanban, Search, Trash2 } from 'lucide-react'
 import { adminApi } from '../api/endpoints'
 import type { AuthUser, ProjectSummary } from '../api/types'
+import { AdminDownloadCsvButton } from '../components/admin/AdminDownloadCsvButton'
 import { StatusMessage } from '../components/StatusMessage'
+import { downloadCsv } from '../lib/downloadCsv'
 import {
   btnBase,
   btnCompact,
@@ -70,16 +72,36 @@ export function AdminProjectsPage() {
 
   return (
     <div className="admin-fade-in space-y-8">
-      <header className="space-y-2">
-        <p className="m-0 text-xs font-semibold uppercase tracking-[0.14em] text-primary">
-          Administration
-        </p>
-        <h1 className="m-0 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-          Projects
-        </h1>
-        <p className="m-0 max-w-xl text-muted-text leading-relaxed">
-          View and manage design projects created by users (uploaded files and saved results).
-        </p>
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-2">
+          <p className="m-0 text-xs font-semibold uppercase tracking-[0.14em] text-primary">
+            Administration
+          </p>
+          <h1 className="m-0 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+            Projects
+          </h1>
+          <p className="m-0 max-w-xl text-muted-text leading-relaxed">
+            View and manage design projects created by users (uploaded files and saved results).
+          </p>
+        </div>
+        <AdminDownloadCsvButton
+          onClick={async () => {
+            setError(null)
+            try {
+              await downloadCsv(
+                () =>
+                  adminApi.downloadProjectsCsv({
+                    user_id: userId ? Number(userId) : undefined,
+                    pipeline_type: pipelineFilter || undefined,
+                  }),
+                'projects.csv',
+              )
+            } catch (err) {
+              setError(err instanceof Error ? err.message : 'Failed to download CSV')
+            }
+          }}
+          disabled={loading}
+        />
       </header>
 
       {error && <StatusMessage type="error" message={error} />}

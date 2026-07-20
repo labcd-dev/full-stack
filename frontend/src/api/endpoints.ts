@@ -2,6 +2,7 @@ import { apiFetch, artifactUrl, getAuthToken } from './client'
 import type {
   ActionInfo,
   ArtifactResponse,
+  AdminUserDetail,
   AuthUser,
   CaseStudiesResponse,
   DefaultPlanInfo,
@@ -43,6 +44,30 @@ function buildQuery(params?: Record<string, string | number | undefined | null>)
   }
   const suffix = query.toString()
   return suffix ? `?${suffix}` : ''
+}
+
+export function triggerBlobDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
+
+export async function downloadAdminCsv(
+  path: string,
+  params?: Record<string, string | number | undefined | null>,
+): Promise<Blob> {
+  const token = getAuthToken()
+  const suffix = buildQuery(params)
+  const response = await fetch(`${API_BASE}${path}${suffix}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!response.ok) {
+    throw new Error('Failed to download CSV')
+  }
+  return response.blob()
 }
 
 export const authApi = {
@@ -125,6 +150,7 @@ export const adminApi = {
       body: JSON.stringify({ plan_id: planId }),
     }),
   listUsers: () => apiFetch<AuthUser[]>('/admin/users'),
+  getUser: (userId: number) => apiFetch<AdminUserDetail>(`/admin/users/${userId}`),
   createUser: (body: {
     email: string
     password: string
@@ -175,6 +201,7 @@ export const adminApi = {
       body: JSON.stringify(body),
     }),
   listErrors: (params?: {
+    user_id?: number
     source?: string
     status_code?: number
     q?: string
@@ -182,33 +209,38 @@ export const adminApi = {
   }) =>
     apiFetch<ErrorEvent[]>(
       `/admin/errors${buildQuery({
+        user_id: params?.user_id,
         source: params?.source,
         status_code: params?.status_code,
         q: params?.q,
         limit: params?.limit,
       })}`,
     ),
-  downloadErrorsCsv: async (params?: {
+  downloadErrorsCsv: (params?: {
+    user_id?: number
     source?: string
     status_code?: number
     q?: string
     limit?: number
-  }) => {
-    const token = getAuthToken()
-    const suffix = buildQuery({
+  }) =>
+    downloadAdminCsv('/admin/errors/export.csv', {
+      user_id: params?.user_id,
       source: params?.source,
       status_code: params?.status_code,
       q: params?.q,
       limit: params?.limit,
-    })
-    const response = await fetch(`${API_BASE}/admin/errors/export.csv${suffix}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
-    if (!response.ok) {
-      throw new Error('Failed to download CSV')
-    }
-    return response.blob()
-  },
+    }),
+  downloadUsersCsv: () => downloadAdminCsv('/admin/users/export.csv'),
+  downloadPlansCsv: () => downloadAdminCsv('/admin/plans/export.csv'),
+  downloadProjectsCsv: (params?: { user_id?: number; pipeline_type?: string }) =>
+    downloadAdminCsv('/admin/projects/export.csv', {
+      user_id: params?.user_id,
+      pipeline_type: params?.pipeline_type,
+    }),
+  downloadMonitoringCsv: () => downloadAdminCsv('/admin/monitoring/export.csv'),
+  downloadOverviewCsv: () => downloadAdminCsv('/admin/overview/export.csv'),
+  downloadProfileSurveyCsv: () => downloadAdminCsv('/admin/survey/responses/profile/export.csv'),
+  downloadFeedbackSurveyCsv: () => downloadAdminCsv('/admin/survey/responses/feedback/export.csv'),
   getSurveySettings: () => apiFetch<SurveySettings>('/admin/survey/settings'),
   updateSurveySettings: (body: Partial<SurveySettings>) =>
     apiFetch<SurveySettings>('/admin/survey/settings', {

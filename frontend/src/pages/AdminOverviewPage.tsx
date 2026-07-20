@@ -3,7 +3,9 @@ import { Link } from 'react-router-dom'
 import { FolderKanban, Package, Shield, UserCheck, Users, Zap } from 'lucide-react'
 import { adminApi } from '../api/endpoints'
 import type { AuthUser, PlanInfo, ProjectSummary } from '../api/types'
+import { AdminDownloadCsvButton } from '../components/admin/AdminDownloadCsvButton'
 import { StatusMessage } from '../components/StatusMessage'
+import { downloadCsv } from '../lib/downloadCsv'
 import { btnPrimary, cardPanel } from '../lib/classes'
 
 export function AdminOverviewPage() {
@@ -87,16 +89,30 @@ export function AdminOverviewPage() {
 
   return (
     <div className="admin-fade-in space-y-8">
-      <header className="space-y-2">
-        <p className="m-0 text-xs font-semibold uppercase tracking-[0.14em] text-primary">
-          Administration
-        </p>
-        <h1 className="m-0 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-          Overview
-        </h1>
-        <p className="m-0 max-w-xl text-muted-text leading-relaxed">
-          Manage plans, assign them to users, and choose the default plan for registration.
-        </p>
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-2">
+          <p className="m-0 text-xs font-semibold uppercase tracking-[0.14em] text-primary">
+            Administration
+          </p>
+          <h1 className="m-0 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+            Overview
+          </h1>
+          <p className="m-0 max-w-xl text-muted-text leading-relaxed">
+            Manage plans, assign them to users, and choose the default plan for registration.
+          </p>
+        </div>
+        <AdminDownloadCsvButton
+          label="Download all Data in CSV"
+          onClick={async () => {
+            setError(null)
+            try {
+              await downloadCsv(() => adminApi.downloadOverviewCsv(), 'admin_all_data.csv')
+            } catch (err) {
+              setError(err instanceof Error ? err.message : 'Failed to download CSV')
+            }
+          }}
+          disabled={loading}
+        />
       </header>
 
       {error && <StatusMessage type="error" message={error} />}

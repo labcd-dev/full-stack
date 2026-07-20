@@ -13,6 +13,7 @@ import { AdminPlansPage } from './pages/AdminPlansPage'
 import { AdminProjectDetailPage } from './pages/AdminProjectDetailPage'
 import { AdminProjectsPage } from './pages/AdminProjectsPage'
 import { AdminSurveyPage } from './pages/AdminSurveyPage'
+import { AdminUserDetailPage } from './pages/AdminUserDetailPage'
 import { AdminUsersPage } from './pages/AdminUsersPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
@@ -56,6 +57,7 @@ export default function App() {
                   <Route path="errors" element={<AdminErrorsPage />} />
                   <Route path="plans" element={<AdminPlansPage />} />
                   <Route path="users" element={<AdminUsersPage />} />
+                  <Route path="users/:userId" element={<AdminUserDetailPage />} />
                   <Route path="projects" element={<AdminProjectsPage />} />
                   <Route path="projects/:projectId" element={<AdminProjectDetailPage />} />
                   <Route path="survey" element={<AdminSurveyPage />} />

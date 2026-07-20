@@ -242,12 +242,15 @@ def record_error_best_effort(
 def list_errors(
     db: Session,
     *,
+    user_id: int | None = None,
     source: str | None = None,
     status_code: int | None = None,
     q: str | None = None,
     limit: int = 200,
 ) -> list[ErrorEvent]:
     query = db.query(ErrorEvent)
+    if user_id is not None:
+        query = query.filter(ErrorEvent.user_id == user_id)
     if source:
         query = query.filter(ErrorEvent.source == source)
     if status_code is not None:
@@ -287,6 +290,7 @@ def _event_row(event: ErrorEvent) -> dict[str, Any]:
 def export_csv(
     db: Session,
     *,
+    user_id: int | None = None,
     source: str | None = None,
     status_code: int | None = None,
     q: str | None = None,
@@ -294,6 +298,7 @@ def export_csv(
 ) -> str:
     events = list_errors(
         db,
+        user_id=user_id,
         source=source,
         status_code=status_code,
         q=q,

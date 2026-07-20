@@ -8,8 +8,10 @@ import type {
   SurveySettings,
   TutorialVideo,
 } from '../api/types'
+import { AdminDownloadCsvButton } from '../components/admin/AdminDownloadCsvButton'
 import { StatusMessage } from '../components/StatusMessage'
 import { useAuth } from '../context/AuthContext'
+import { downloadCsv } from '../lib/downloadCsv'
 import {
   btnBase,
   btnCompact,
@@ -258,7 +260,23 @@ export function AdminSurveyPage() {
       </div>
 
       <div className={cardPanel}>
-        <h2 className="mt-0 text-base font-semibold text-foreground">Profile survey responses</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="mt-0 text-base font-semibold text-foreground">Profile survey responses</h2>
+          <AdminDownloadCsvButton
+            onClick={async () => {
+              setError(null)
+              try {
+                await downloadCsv(
+                  () => adminApi.downloadProfileSurveyCsv(),
+                  'profile_survey_responses.csv',
+                )
+              } catch (err) {
+                setError(err instanceof Error ? err.message : 'Failed to download CSV')
+              }
+            }}
+            disabled={loading || profileRows.length === 0}
+          />
+        </div>
         {profileRows.length === 0 ? (
           <p className="text-sm text-muted-text">No profile surveys submitted yet.</p>
         ) : (
@@ -294,7 +312,23 @@ export function AdminSurveyPage() {
       </div>
 
       <div className={cardPanel}>
-        <h2 className="mt-0 text-base font-semibold text-foreground">Feedback survey responses</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="mt-0 text-base font-semibold text-foreground">Feedback survey responses</h2>
+          <AdminDownloadCsvButton
+            onClick={async () => {
+              setError(null)
+              try {
+                await downloadCsv(
+                  () => adminApi.downloadFeedbackSurveyCsv(),
+                  'feedback_survey_responses.csv',
+                )
+              } catch (err) {
+                setError(err instanceof Error ? err.message : 'Failed to download CSV')
+              }
+            }}
+            disabled={loading || feedbackRows.length === 0}
+          />
+        </div>
         {feedbackRows.length === 0 ? (
           <p className="text-sm text-muted-text">No feedback surveys submitted yet.</p>
         ) : (

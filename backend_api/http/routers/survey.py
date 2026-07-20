@@ -1,11 +1,13 @@
 """User and admin routes for surveys and tutorial videos."""
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from backend_api.db.models import User
 from backend_api.db.session import get_db
 from backend_api.http.dependencies import get_current_user, require_admin
+from backend_api.http.schemas.auth import UserOut
 from backend_api.http.schemas.survey import (
     FeedbackSurveyRequest,
     FeedbackSurveyResponseOut,
@@ -20,8 +22,11 @@ from backend_api.http.schemas.survey import (
     TutorialVideoUpdateRequest,
 )
 from backend_api.http.services import survey_service
+from backend_api.http.services.admin_csv_service import (
+    export_feedback_survey_csv,
+    export_profile_survey_csv,
+)
 from backend_api.http.services.profile_service import user_out
-from backend_api.http.schemas.auth import UserOut
 
 router = APIRouter(tags=["survey"])
 
@@ -147,6 +152,32 @@ def list_survey_responses(
             )
             for row, u in feedback_rows
         ],
+    )
+
+
+@router.get("/admin/survey/responses/profile/export.csv")
+def export_profile_survey_csv_endpoint(
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    content = export_profile_survey_csv(db)
+    return StreamingResponse(
+        iter([content]),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="profile_survey_responses.csv"'},
+    )
+
+
+@router.get("/admin/survey/responses/feedback/export.csv")
+def export_feedback_survey_csv_endpoint(
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    content = export_feedback_survey_csv(db)
+    return StreamingResponse(
+        iter([content]),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="feedback_survey_responses.csv"'},
     )
 
 

@@ -12,8 +12,10 @@ import {
 } from 'lucide-react'
 import { adminApi } from '../api/endpoints'
 import type { MonitoringResponse, MonitoringSnapshot } from '../api/types'
+import { AdminDownloadCsvButton } from '../components/admin/AdminDownloadCsvButton'
 import { PlotlyChart } from '../components/PlotlyChart'
 import { StatusMessage } from '../components/StatusMessage'
+import { downloadCsv } from '../lib/downloadCsv'
 import { btnBase, btnCompact, cardPanel } from '../lib/classes'
 
 const POLL_MS = 5000
@@ -150,6 +152,20 @@ export function AdminMonitoringPage() {
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-muted-text">Updated {formatAgo(updatedAt)}</span>
+          <AdminDownloadCsvButton
+            onClick={async () => {
+              setError(null)
+              try {
+                await downloadCsv(
+                  () => adminApi.downloadMonitoringCsv(),
+                  'monitoring_history.csv',
+                )
+              } catch (err) {
+                setError(err instanceof Error ? err.message : 'Failed to download CSV')
+              }
+            }}
+            disabled={loading}
+          />
           <button
             type="button"
             className={`${btnBase} ${btnCompact}`}

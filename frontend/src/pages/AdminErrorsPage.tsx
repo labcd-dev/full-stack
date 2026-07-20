@@ -1,14 +1,15 @@
 import { Navigate } from 'react-router-dom'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Download, RefreshCw, Search } from 'lucide-react'
+import { RefreshCw, Search } from 'lucide-react'
 import { adminApi } from '../api/endpoints'
 import type { ErrorEvent, ErrorTrackingSettings } from '../api/types'
+import { AdminDownloadCsvButton } from '../components/admin/AdminDownloadCsvButton'
 import { StatusMessage } from '../components/StatusMessage'
 import { useAuth } from '../context/AuthContext'
+import { downloadCsv } from '../lib/downloadCsv'
 import {
   btnBase,
   btnCompact,
-  btnPrimary,
   cardPanel,
   fieldCheckbox,
   fieldInput,
@@ -119,17 +120,15 @@ export function AdminErrorsPage() {
     setError(null)
     try {
       const statusFilter = statusCode.trim() ? Number(statusCode) : undefined
-      const blob = await adminApi.downloadErrorsCsv({
-        source: source || undefined,
-        status_code: Number.isFinite(statusFilter) ? statusFilter : undefined,
-        q: query.trim() || undefined,
-      })
-      const url = URL.createObjectURL(blob)
-      const anchor = document.createElement('a')
-      anchor.href = url
-      anchor.download = 'error_events.csv'
-      anchor.click()
-      URL.revokeObjectURL(url)
+      await downloadCsv(
+        () =>
+          adminApi.downloadErrorsCsv({
+            source: source || undefined,
+            status_code: Number.isFinite(statusFilter) ? statusFilter : undefined,
+            q: query.trim() || undefined,
+          }),
+        'error_events.csv',
+      )
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to download CSV')
     }
@@ -236,14 +235,10 @@ export function AdminErrorsPage() {
             <RefreshCw className={`size-3.5 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </button>
-          <button
-            type="button"
-            className={`${btnBase} ${btnPrimary} ${btnCompact}`}
+          <AdminDownloadCsvButton
             onClick={() => void handleDownloadCsv()}
-          >
-            <Download className="size-3.5" />
-            Download CSV
-          </button>
+            disabled={loading}
+          />
         </div>
 
         <p className="mb-3 text-sm text-muted-text">

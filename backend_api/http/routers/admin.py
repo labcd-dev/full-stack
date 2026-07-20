@@ -9,6 +9,7 @@ from backend_api.db.session import get_db
 from backend_api.http.dependencies import require_admin
 from backend_api.http.schemas.auth import (
     ActionOut,
+    AdminUserDetailOut,
     CreateUserRequest,
     DefaultPlanOut,
     PlanCreateRequest,
@@ -17,6 +18,14 @@ from backend_api.http.schemas.auth import (
     SetDefaultPlanRequest,
     UpdateUserRequest,
     UserOut,
+)
+from backend_api.http.services import admin_user_service
+from backend_api.http.services.admin_csv_service import (
+    export_monitoring_csv,
+    export_overview_csv,
+    export_plans_csv,
+    export_projects_csv,
+    export_users_csv,
 )
 from backend_api.http.schemas.error_tracking import (
     ErrorEventOut,
@@ -42,6 +51,14 @@ from backend_api.http.services.profile_service import user_out
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
+def _csv_response(content: str, filename: str) -> StreamingResponse:
+    return StreamingResponse(
+        iter([content]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 def _plan_out(plan) -> PlanOut:
     return PlanOut(**plan_service.plan_out_dict(plan))
 
@@ -49,6 +66,19 @@ def _plan_out(plan) -> PlanOut:
 @router.get("/monitoring", response_model=MonitoringResponse)
 def get_monitoring(_: User = Depends(require_admin)) -> MonitoringResponse:
     return MonitoringResponse(**monitoring_service.collect_snapshot())
+
+
+@router.get("/monitoring/export.csv")
+def export_monitoring_csv_endpoint(_: User = Depends(require_admin)) -> StreamingResponse:
+    return _csv_response(export_monitoring_csv(), "monitoring_history.csv")
+
+
+@router.get("/overview/export.csv")
+def export_overview_csv_endpoint(
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    return _csv_response(export_overview_csv(db), "admin_all_data.csv")
 
 
 @router.get("/errors/settings", response_model=ErrorTrackingSettings)
@@ -90,6 +120,7 @@ def update_error_tracking_settings(
 def list_error_events(
     _: User = Depends(require_admin),
     db: Session = Depends(get_db),
+    user_id: int | None = Query(default=None),
     source: str | None = Query(default=None),
     status_code: int | None = Query(default=None),
     q: str | None = Query(default=None),
@@ -97,6 +128,7 @@ def list_error_events(
 ) -> list[ErrorEventOut]:
     events = error_tracking_service.list_errors(
         db,
+        user_id=user_id,
         source=source,
         status_code=status_code,
         q=q,
@@ -109,6 +141,7 @@ def list_error_events(
 def export_error_events_csv(
     _: User = Depends(require_admin),
     db: Session = Depends(get_db),
+    user_id: int | None = Query(default=None),
     source: str | None = Query(default=None),
     status_code: int | None = Query(default=None),
     q: str | None = Query(default=None),
@@ -116,6 +149,7 @@ def export_error_events_csv(
 ) -> StreamingResponse:
     content = error_tracking_service.export_csv(
         db,
+        user_id=user_id,
         source=source,
         status_code=status_code,
         q=q,
@@ -126,6 +160,14 @@ def export_error_events_csv(
         media_type="text/csv",
         headers={"Content-Disposition": 'attachment; filename="error_events.csv"'},
     )
+
+
+@router.get("/plans/export.csv")
+def export_plans_csv_endpoint(
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    return _csv_response(export_plans_csv(db), "plans.csv")
 
 
 @router.get("/actions", response_model=list[ActionOut])
@@ -242,6 +284,26 @@ def list_users(
     return [user_out(user) for user in users]
 
 
+@router.get("/users/export.csv")
+def export_users_csv_endpoint(
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    return _csv_response(export_users_csv(db), "users.csv")
+
+
+@router.get("/users/{user_id}", response_model=AdminUserDetailOut)
+def get_user_detail(
+    user_id: int,
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> AdminUserDetailOut:
+    detail = admin_user_service.get_user_detail(db, user_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return AdminUserDetailOut(**detail)
+
+
 @router.post("/users", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 def create_user_endpoint(
     request: CreateUserRequest,
@@ -311,6 +373,21 @@ def list_all_projects(
         ProjectSummary(**project_service.project_to_summary(p, include_owner=True))
         for p in projects
     ]
+
+
+@router.get("/projects/export.csv")
+def export_projects_csv_endpoint(
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+    user_id: int | None = Query(default=None),
+    pipeline_type: str | None = Query(default=None),
+) -> StreamingResponse:
+    content = export_projects_csv(
+        db,
+        user_id=user_id,
+        pipeline_type=pipeline_type,
+    )
+    return _csv_response(content, "projects.csv")
 
 
 @router.get("/projects/{project_id}", response_model=ProjectDetail)

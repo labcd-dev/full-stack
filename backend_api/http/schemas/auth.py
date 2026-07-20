@@ -113,3 +113,39 @@ class UpdateUserRequest(BaseModel):
     is_admin: bool | None = None
     password: str | None = Field(default=None, min_length=6)
     plan_id: int | None = None
+
+
+class UserProfileSurveyOut(BaseModel):
+    university: str | None
+    degree: str | None
+    major: str | None
+    matlab_experience: str | None
+    control_design_experience: str | None
+    completed_at: datetime | None
+
+
+class UserFeedbackSurveyOut(BaseModel):
+    satisfaction: int
+    ease_of_use: int
+    product_value: int
+    confidence: int
+    reuse_intention: int
+    willingness_to_pay: int
+    main_problems: str
+    created_at: datetime
+
+
+class AdminUserDetailOut(BaseModel):
+    user: UserOut
+    allowed_models: list[str]
+    profile_survey: UserProfileSurveyOut | None = None
+    feedback_survey: UserFeedbackSurveyOut | None = None
+    projects: list["ProjectSummary"]
+    errors: list["ErrorEventOut"]
+
+
+# Avoid circular imports at runtime; populated after sibling schemas load.
+from backend_api.http.schemas.error_tracking import ErrorEventOut  # noqa: E402
+from backend_api.http.schemas.projects import ProjectSummary  # noqa: E402
+
+AdminUserDetailOut.model_rebuild()

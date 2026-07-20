@@ -126,6 +126,35 @@ export interface AuthUser {
   tutorial_dont_show_again?: boolean
 }
 
+export interface UserProfileSurveyDetail {
+  university: string | null
+  degree: string | null
+  major: string | null
+  matlab_experience: string | null
+  control_design_experience: string | null
+  completed_at: string | null
+}
+
+export interface UserFeedbackSurveyDetail {
+  satisfaction: number
+  ease_of_use: number
+  product_value: number
+  confidence: number
+  reuse_intention: number
+  willingness_to_pay: number
+  main_problems: string
+  created_at: string
+}
+
+export interface AdminUserDetail {
+  user: AuthUser
+  allowed_models: string[]
+  profile_survey: UserProfileSurveyDetail | null
+  feedback_survey: UserFeedbackSurveyDetail | null
+  projects: ProjectSummary[]
+  errors: ErrorEvent[]
+}
+
 export type ExperienceLevel = 'None' | 'Beginner' | 'Intermediate' | 'Advanced'
 export type DegreeLevel = "Bachelor's" | "Master's" | 'PhD' | 'Other'
 export type MajorField =

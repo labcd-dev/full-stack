@@ -13,7 +13,7 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  const from = (location.state as { from?: string } | null)?.from ?? '/'
+  const from = (location.state as { from?: string } | null)?.from ?? '/studio'
 
   if (!loading && user) {
     return <Navigate to={from} replace />

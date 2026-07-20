@@ -87,7 +87,7 @@ export function AdminPlansPage() {
   }, [plans, query])
 
   if (!currentUser?.is_admin) {
-    return <Navigate to="/" replace />
+    return <Navigate to="/studio" replace />
   }
 
   const toggleAction = (code: string) => {

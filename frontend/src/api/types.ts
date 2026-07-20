@@ -18,6 +18,10 @@ export interface UploadResponse {
   file_content: string
 }
 
+export interface MediaUploadResponse {
+  url: string
+}
+
 export interface ModelsResponse {
   llm_models: string[]
   rag_models: string[]
@@ -348,5 +352,48 @@ export interface ErrorEvent {
   page_url: string | null
   extra: Record<string, unknown> | null
   created_at: string | null
+}
+
+export interface SiteBrand {
+  brand_name: string
+  tagline: string
+  logo_url: string
+  primary_color: string
+  secondary_color: string
+  sign_in_url: string
+  access_platform_url: string
+  page_title: string
+}
+
+export interface NavMenuItem {
+  id: number
+  location: string
+  label: string
+  href: string
+  sort_order: number
+  is_external: boolean
+}
+
+export interface LandingPayload {
+  brand: SiteBrand
+  menus: Record<string, NavMenuItem[]>
+  landing: Record<string, unknown>
+}
+
+export interface BlogPostListItem {
+  id: number
+  title: string
+  slug: string
+  excerpt: string
+  cover_image_url: string | null
+  status: string
+  published_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface BlogPost extends BlogPostListItem {
+  body_markdown: string
+  author_id: number | null
 }
 

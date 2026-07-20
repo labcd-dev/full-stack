@@ -11,7 +11,7 @@ import { btnBase, btnCompact } from '../lib/classes'
 export function Layout() {
   const location = useLocation()
   const navigate = useNavigate()
-  const isHome = location.pathname === '/'
+  const isHome = location.pathname === '/studio'
   const isProjects = location.pathname.startsWith('/projects')
   const isProfile = location.pathname === '/profile'
   const { user, logout } = useAuth()
@@ -49,7 +49,7 @@ export function Layout() {
   return (
     <div className="min-h-screen flex flex-col bg-surface">
       <header className="sticky top-0 z-10 flex justify-between items-center gap-4 px-6 py-3.5 bg-surface-elevated/95 backdrop-blur-sm border-b border-border shadow-sm max-md:flex-col max-md:items-start">
-        <Link to="/" className="flex items-center gap-3 group">
+        <Link to="/studio" className="flex items-center gap-3 group">
           <img
             src="/logo.svg"
             alt="LabCD"
@@ -68,7 +68,7 @@ export function Layout() {
           {user && (
             <nav className="flex gap-1">
               <Link
-                to="/"
+                to="/studio"
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                   isHome
                     ? 'bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-primary'

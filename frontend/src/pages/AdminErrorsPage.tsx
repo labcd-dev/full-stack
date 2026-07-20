@@ -90,7 +90,7 @@ export function AdminErrorsPage() {
   }, [query, source, statusCode])
 
   if (!currentUser?.is_admin) {
-    return <Navigate to="/" replace />
+    return <Navigate to="/studio" replace />
   }
 
   const updateToggle = async (patch: Partial<ErrorTrackingSettings>) => {

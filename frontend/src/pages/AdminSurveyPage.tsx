@@ -72,7 +72,7 @@ export function AdminSurveyPage() {
   }, [currentUser?.is_admin, load])
 
   if (!currentUser?.is_admin) {
-    return <Navigate to="/" replace />
+    return <Navigate to="/studio" replace />
   }
 
   const toggleEnabled = async (enabled: boolean) => {

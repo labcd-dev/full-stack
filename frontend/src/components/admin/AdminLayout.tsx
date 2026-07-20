@@ -6,9 +6,11 @@ import {
   Bug,
   ClipboardList,
   FolderKanban,
+  Globe,
   LayoutDashboard,
   LogOut,
   Menu,
+  Newspaper,
   Package,
   Users,
   X,
@@ -19,9 +21,11 @@ import { btnBase, btnCompact } from '../../lib/classes'
 
 const navItems = [
   { to: '/admin', end: true, label: 'Overview', icon: LayoutDashboard },
-  { to: '/admin/plans', end: false, label: 'Plans', icon: Package },
   { to: '/admin/users', end: false, label: 'Users', icon: Users },
   { to: '/admin/projects', end: false, label: 'Projects', icon: FolderKanban },
+  { to: '/admin/plans', end: false, label: 'Plans', icon: Package },
+  { to: '/admin/site', end: false, label: 'Site CMS', icon: Globe },
+  { to: '/admin/blog', end: false, label: 'Blog', icon: Newspaper },
   { to: '/admin/survey', end: false, label: 'Survey', icon: ClipboardList },
   { to: '/admin/monitoring', end: false, label: 'Monitoring', icon: Activity },
   { to: '/admin/errors', end: false, label: 'Error Tracking', icon: Bug },
@@ -33,7 +37,7 @@ export function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   if (!user?.is_admin) {
-    return <Navigate to="/" replace />
+    return <Navigate to="/studio" replace />
   }
 
   const handleLogout = () => {
@@ -110,7 +114,7 @@ export function AdminLayout() {
 
         <div className="space-y-3 border-t border-border p-4">
           <Link
-            to="/"
+            to="/studio"
             className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-muted-text transition-colors hover:bg-surface-hover hover:text-foreground"
             onClick={closeSidebar}
           >

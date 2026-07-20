@@ -82,7 +82,7 @@ export function AdminUsersPage() {
   }, [users, query])
 
   if (!currentUser?.is_admin) {
-    return <Navigate to="/" replace />
+    return <Navigate to="/studio" replace />
   }
 
   const openCreate = () => {

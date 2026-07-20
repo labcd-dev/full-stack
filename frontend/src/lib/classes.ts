@@ -5,7 +5,7 @@ export const pageIntro = 'text-muted-text leading-relaxed'
 export const fieldLabel =
   'flex flex-col gap-1.5 mb-4 last:mb-0 [&>span]:font-medium [&>span]:text-sm [&>span]:text-foreground'
 export const fieldInput =
-  'px-3 py-2.5 border border-border-input rounded-lg font-inherit bg-surface-elevated text-foreground shadow-sm transition-[border-color,box-shadow] duration-150 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20'
+  'w-full px-3 py-2.5 border border-border-input rounded-lg font-inherit bg-surface-elevated text-foreground shadow-sm transition-[border-color,box-shadow] duration-150 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20'
 export const fieldCheckbox = 'flex flex-row items-center gap-2 mb-4 text-foreground'
 
 const btnShared =

@@ -14,7 +14,7 @@ export function RegisterPage() {
   const [submitting, setSubmitting] = useState(false)
 
   if (!loading && user) {
-    return <Navigate to="/" replace />
+    return <Navigate to="/studio" replace />
   }
 
   const handleSubmit = async (event: FormEvent) => {
@@ -33,7 +33,7 @@ export function RegisterPage() {
     setSubmitting(true)
     try {
       await register(email.trim(), password)
-      navigate('/', { replace: true })
+      navigate('/studio', { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed')
     } finally {

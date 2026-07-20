@@ -4,6 +4,7 @@ import {
   Activity,
   ArrowLeft,
   Bug,
+  ClipboardList,
   FolderKanban,
   LayoutDashboard,
   LogOut,
@@ -21,6 +22,7 @@ const navItems = [
   { to: '/admin/plans', end: false, label: 'Plans', icon: Package },
   { to: '/admin/users', end: false, label: 'Users', icon: Users },
   { to: '/admin/projects', end: false, label: 'Projects', icon: FolderKanban },
+  { to: '/admin/survey', end: false, label: 'Survey', icon: ClipboardList },
   { to: '/admin/monitoring', end: false, label: 'Monitoring', icon: Activity },
   { to: '/admin/errors', end: false, label: 'Error Tracking', icon: Bug },
 ] as const

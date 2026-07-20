@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { OnboardingGate } from './OnboardingGate'
 
 export function ProtectedRoute() {
   const { user, loading } = useAuth()
@@ -17,5 +18,9 @@ export function ProtectedRoute() {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />
   }
 
-  return <Outlet />
+  return (
+    <OnboardingGate>
+      <Outlet />
+    </OnboardingGate>
+  )
 }

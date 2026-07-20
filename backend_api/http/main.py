@@ -24,6 +24,7 @@ from backend_api.http.routers import (
     recommender,
     regularizer,
     silo,
+    survey,
     trimmer,
     upload,
 )
@@ -94,6 +95,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router, prefix=API_PREFIX)
     app.include_router(auth.router, prefix=API_PREFIX)
     app.include_router(admin.router, prefix=API_PREFIX)
+    app.include_router(survey.router, prefix=API_PREFIX)
     app.include_router(errors.router, prefix=API_PREFIX)
     app.include_router(projects.router, prefix=API_PREFIX)
     app.include_router(upload.router, prefix=API_PREFIX)

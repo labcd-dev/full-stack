@@ -89,6 +89,24 @@ class User(Base):
         nullable=True,
         index=True,
     )
+    university: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    degree: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    major: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    matlab_experience: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    control_design_experience: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    profile_survey_completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    feedback_survey_completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    tutorial_dont_show_again: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -103,6 +121,13 @@ class User(Base):
     projects: Mapped[list[Project]] = relationship(
         "Project",
         back_populates="owner",
+        cascade="all, delete-orphan",
+        lazy="noload",
+    )
+    feedback_survey: Mapped[FeedbackSurveyResponse | None] = relationship(
+        "FeedbackSurveyResponse",
+        back_populates="user",
+        uselist=False,
         cascade="all, delete-orphan",
         lazy="noload",
     )
@@ -214,3 +239,47 @@ class Project(Base):
     )
 
     owner: Mapped[User] = relationship("User", back_populates="projects")
+
+
+class FeedbackSurveyResponse(Base):
+    """One-time post-use feedback survey answers for a user."""
+
+    __tablename__ = "feedback_survey_responses"
+    __table_args__ = (UniqueConstraint("user_id", name="uq_feedback_survey_user"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    satisfaction: Mapped[int] = mapped_column(Integer, nullable=False)
+    ease_of_use: Mapped[int] = mapped_column(Integer, nullable=False)
+    product_value: Mapped[int] = mapped_column(Integer, nullable=False)
+    confidence: Mapped[int] = mapped_column(Integer, nullable=False)
+    reuse_intention: Mapped[int] = mapped_column(Integer, nullable=False)
+    willingness_to_pay: Mapped[int] = mapped_column(Integer, nullable=False)
+    main_problems: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    user: Mapped[User] = relationship("User", back_populates="feedback_survey")
+
+
+class TutorialVideo(Base):
+    """Admin-managed how-to video clip shown in the first-login slider."""
+
+    __tablename__ = "tutorial_videos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    file_url: Mapped[str] = mapped_column(String(512), nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )

@@ -37,6 +37,9 @@ def user_out(user: User) -> UserOut:
         plan_name=user.plan.name if user.plan is not None else None,
         actions=user.action_codes(),
         created_at=user.created_at,
+        profile_survey_completed=user.profile_survey_completed_at is not None,
+        feedback_survey_completed=user.feedback_survey_completed_at is not None,
+        tutorial_dont_show_again=bool(user.tutorial_dont_show_again),
     )
 
 

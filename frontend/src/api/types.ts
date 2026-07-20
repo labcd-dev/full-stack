@@ -121,6 +121,88 @@ export interface AuthUser {
   plan_name: string | null
   actions: string[]
   created_at: string
+  profile_survey_completed?: boolean
+  feedback_survey_completed?: boolean
+  tutorial_dont_show_again?: boolean
+}
+
+export type ExperienceLevel = 'None' | 'Beginner' | 'Intermediate' | 'Advanced'
+export type DegreeLevel = "Bachelor's" | "Master's" | 'PhD' | 'Other'
+export type MajorField =
+  | 'Electrical Engineering'
+  | 'Mechanical Engineering'
+  | 'Chemical Engineering'
+  | 'Aerospace Engineering'
+  | 'Computer Science'
+  | 'Control Engineering'
+  | 'Mechatronics'
+  | 'Other'
+
+export interface SurveySettings {
+  enabled: boolean
+}
+
+export interface TutorialVideo {
+  id: number
+  title: string
+  file_url: string
+  sort_order: number
+  created_at: string
+}
+
+export interface SurveyStatus {
+  enabled: boolean
+  needs_profile_survey: boolean
+  feedback_completed: boolean
+  show_tutorial: boolean
+  videos: TutorialVideo[]
+}
+
+export interface ProfileSurveyRequest {
+  university: string
+  degree: DegreeLevel
+  major: MajorField
+  matlab_experience: ExperienceLevel
+  control_design_experience: ExperienceLevel
+}
+
+export interface FeedbackSurveyRequest {
+  satisfaction: number
+  ease_of_use: number
+  product_value: number
+  confidence: number
+  reuse_intention: number
+  willingness_to_pay: number
+  main_problems: string
+}
+
+export interface ProfileSurveyResponseRow {
+  user_id: number
+  email: string
+  university: string | null
+  degree: string | null
+  major: string | null
+  matlab_experience: string | null
+  control_design_experience: string | null
+  completed_at: string | null
+}
+
+export interface FeedbackSurveyResponseRow {
+  user_id: number
+  email: string
+  satisfaction: number
+  ease_of_use: number
+  product_value: number
+  confidence: number
+  reuse_intention: number
+  willingness_to_pay: number
+  main_problems: string
+  created_at: string
+}
+
+export interface SurveyResponses {
+  profile: ProfileSurveyResponseRow[]
+  feedback: FeedbackSurveyResponseRow[]
 }
 
 export interface ActionInfo {

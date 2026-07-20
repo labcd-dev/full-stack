@@ -58,6 +58,31 @@ def _migrate_schema() -> None:
         )
     if "plan_id" not in columns:
         statements.append("ALTER TABLE users ADD COLUMN plan_id INTEGER")
+    if "university" not in columns:
+        statements.append("ALTER TABLE users ADD COLUMN university VARCHAR(200)")
+    if "degree" not in columns:
+        statements.append("ALTER TABLE users ADD COLUMN degree VARCHAR(200)")
+    if "major" not in columns:
+        statements.append("ALTER TABLE users ADD COLUMN major VARCHAR(200)")
+    if "matlab_experience" not in columns:
+        statements.append("ALTER TABLE users ADD COLUMN matlab_experience VARCHAR(40)")
+    if "control_design_experience" not in columns:
+        statements.append(
+            "ALTER TABLE users ADD COLUMN control_design_experience VARCHAR(40)"
+        )
+    if "profile_survey_completed_at" not in columns:
+        statements.append(
+            "ALTER TABLE users ADD COLUMN profile_survey_completed_at TIMESTAMP"
+        )
+    if "feedback_survey_completed_at" not in columns:
+        statements.append(
+            "ALTER TABLE users ADD COLUMN feedback_survey_completed_at TIMESTAMP"
+        )
+    if "tutorial_dont_show_again" not in columns:
+        statements.append(
+            "ALTER TABLE users ADD COLUMN tutorial_dont_show_again "
+            "BOOLEAN NOT NULL DEFAULT FALSE"
+        )
 
     if statements:
         with engine.begin() as conn:

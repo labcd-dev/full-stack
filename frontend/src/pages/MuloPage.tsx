@@ -20,6 +20,7 @@ import { MuloTrimmerStep } from '../components/MuloTrimmerStep'
 import { ModelSelect } from '../components/ModelSelect'
 import { StatusMessage } from '../components/StatusMessage'
 import { usePipeline } from '../context/PipelineContext'
+import { useFeedbackSurveyPrompt } from '../hooks/useFeedbackSurveyPrompt'
 import {
   buildMuloRunConfig,
   normalizeControllerStructure,
@@ -89,6 +90,7 @@ export function MuloPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [optimizationRunKey, setOptimizationRunKey] = useState(0)
+  const { promptAfterDesignSuccess, feedbackModal } = useFeedbackSurveyPrompt()
 
   const jobId = pipeline.muloJobId
 
@@ -260,7 +262,8 @@ export function MuloPage() {
   const handleOptimizationComplete = useCallback((state: MuloDesignerStateResponse) => {
     setDesignerState(state)
     setStage('complete')
-  }, [])
+    void promptAfterDesignSuccess()
+  }, [promptAfterDesignSuccess])
 
   const continueNextLoop = async () => {
     if (!jobId) return
@@ -324,6 +327,8 @@ export function MuloPage() {
         LLM-enhanced genetic algorithm for multi-loop PID controller design.
         {isPipelineWorkflow && ' Run Recommender, Trimmer, and Designer in one workflow.'}
       </p>
+
+      {feedbackModal}
 
       {isPipelineWorkflow && (
         <MuloPipelineStepIndicator

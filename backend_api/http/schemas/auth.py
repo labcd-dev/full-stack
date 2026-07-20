@@ -82,6 +82,9 @@ class UserOut(BaseModel):
     plan_name: str | None = None
     actions: list[str]
     created_at: datetime
+    profile_survey_completed: bool = False
+    feedback_survey_completed: bool = False
+    tutorial_dont_show_again: bool = False
 
     model_config = {"from_attributes": True}
 

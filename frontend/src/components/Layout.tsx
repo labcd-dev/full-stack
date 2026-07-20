@@ -1,6 +1,10 @@
+import { useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { FolderOpen, Home, LogOut, Shield, User } from 'lucide-react'
+import { Clapperboard, FolderOpen, Home, LogOut, Shield, User } from 'lucide-react'
+import { surveyApi } from '../api/endpoints'
+import type { TutorialVideo } from '../api/types'
 import { ThemeToggle } from './ThemeToggle'
+import { TutorialSliderModal } from './TutorialSliderModal'
 import { useAuth } from '../context/AuthContext'
 import { btnBase, btnCompact } from '../lib/classes'
 
@@ -11,10 +15,35 @@ export function Layout() {
   const isProjects = location.pathname.startsWith('/projects')
   const isProfile = location.pathname === '/profile'
   const { user, logout } = useAuth()
+  const [tutorialOpen, setTutorialOpen] = useState(false)
+  const [tutorialVideos, setTutorialVideos] = useState<TutorialVideo[]>([])
+  const [tutorialLoading, setTutorialLoading] = useState(false)
+  const [tutorialError, setTutorialError] = useState<string | null>(null)
 
   const handleLogout = () => {
     logout()
     navigate('/login', { replace: true })
+  }
+
+  const openTutorials = async () => {
+    setTutorialLoading(true)
+    setTutorialError(null)
+    try {
+      const status = await surveyApi.status()
+      if (status.videos.length === 0) {
+        setTutorialError('No tutorial videos available yet.')
+        setTutorialVideos([])
+        setTutorialOpen(false)
+        return
+      }
+      setTutorialVideos(status.videos)
+      setTutorialOpen(true)
+    } catch (err) {
+      setTutorialError(err instanceof Error ? err.message : 'Failed to load tutorials')
+      setTutorialOpen(false)
+    } finally {
+      setTutorialLoading(false)
+    }
   }
 
   return (
@@ -60,6 +89,16 @@ export function Layout() {
                 <FolderOpen className="size-4" aria-hidden />
                 Projects
               </Link>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-text transition-colors hover:text-foreground hover:bg-surface-hover disabled:opacity-60"
+                disabled={tutorialLoading}
+                onClick={() => void openTutorials()}
+                title="Watch video tutorials"
+              >
+                <Clapperboard className="size-4" aria-hidden />
+                {tutorialLoading ? 'Loading…' : 'Tutorials'}
+              </button>
               {user.is_admin && (
                 <Link
                   to="/admin"
@@ -119,11 +158,26 @@ export function Layout() {
         </div>
       </header>
       <main className="flex-1 p-6 max-w-[1200px] w-full mx-auto">
+        {tutorialError && (
+          <p className="mb-4 rounded-lg border border-border bg-surface-muted px-3 py-2 text-sm text-muted-text">
+            {tutorialError}
+          </p>
+        )}
         <Outlet />
       </main>
       <footer className="text-center py-4 px-6 text-muted text-xs border-t border-border">
         LabCD Control Design Studio
       </footer>
+      {tutorialOpen && (
+        <TutorialSliderModal
+          videos={tutorialVideos}
+          mode="browse"
+          onClosed={() => {
+            setTutorialOpen(false)
+            setTutorialError(null)
+          }}
+        />
+      )}
     </div>
   )
 }

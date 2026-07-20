@@ -7,6 +7,8 @@ import type {
   DefaultPlanInfo,
   ErrorEvent,
   ErrorTrackingSettings,
+  FeedbackSurveyRequest,
+  FeedbackSurveyResponseRow,
   JobResponse,
   JobStatusResponse,
   ModelsResponse,
@@ -14,14 +16,19 @@ import type {
   MuloDesignerStateResponse,
   MuloSimulateResponse,
   PlanInfo,
+  ProfileSurveyRequest,
   ProjectDetail,
   ProjectSummary,
   RagStatusResponse,
   RecommenderHandoffResponse,
   RegularizeResponse,
   StandardizeResponse,
+  SurveyResponses,
+  SurveySettings,
+  SurveyStatus,
   TokenResponse,
   TrimmerArtifactsResponse,
+  TutorialVideo,
   UploadResponse,
 } from './types'
 
@@ -202,6 +209,52 @@ export const adminApi = {
     }
     return response.blob()
   },
+  getSurveySettings: () => apiFetch<SurveySettings>('/admin/survey/settings'),
+  updateSurveySettings: (body: Partial<SurveySettings>) =>
+    apiFetch<SurveySettings>('/admin/survey/settings', {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  listSurveyResponses: () => apiFetch<SurveyResponses>('/admin/survey/responses'),
+  listTutorialVideos: () => apiFetch<TutorialVideo[]>('/admin/tutorial-videos'),
+  uploadTutorialVideo: (title: string, file: File) => {
+    const form = new FormData()
+    form.append('title', title)
+    form.append('file', file)
+    return apiFetch<TutorialVideo>('/admin/tutorial-videos', {
+      method: 'POST',
+      body: form,
+    })
+  },
+  updateTutorialVideo: (
+    videoId: number,
+    body: { title?: string; sort_order?: number },
+  ) =>
+    apiFetch<TutorialVideo>(`/admin/tutorial-videos/${videoId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  deleteTutorialVideo: (videoId: number) =>
+    apiFetch<void>(`/admin/tutorial-videos/${videoId}`, { method: 'DELETE' }),
+}
+
+export const surveyApi = {
+  status: () => apiFetch<SurveyStatus>('/survey/status'),
+  submitProfile: (body: ProfileSurveyRequest) =>
+    apiFetch<AuthUser>('/survey/profile', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  submitFeedback: (body: FeedbackSurveyRequest) =>
+    apiFetch<FeedbackSurveyResponseRow>('/survey/feedback', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  dismissTutorial: (action: 'remind_later' | 'dont_show_again') =>
+    apiFetch<SurveyStatus>('/survey/tutorial/dismiss', {
+      method: 'POST',
+      body: JSON.stringify({ action }),
+    }),
 }
 
 export const projectsApi = {

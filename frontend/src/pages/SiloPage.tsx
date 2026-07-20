@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { OctagonX } from 'lucide-react'
 import { healthApi, jobsApi, siloApi } from '../api/endpoints'
 import { ActivityLog } from '../components/ActivityLog'
@@ -12,6 +12,7 @@ import { ProgressBar } from '../components/ProgressBar'
 import { StatusMessage } from '../components/StatusMessage'
 import { Tabs } from '../components/Tabs'
 import { usePipeline } from '../context/PipelineContext'
+import { useFeedbackSurveyPrompt } from '../hooks/useFeedbackSurveyPrompt'
 import { useJobStream } from '../hooks/useJobStream'
 import { useMonitorState } from '../hooks/useMonitorState'
 import { usePoll } from '../hooks/usePoll'
@@ -48,6 +49,8 @@ export function SiloPage() {
 
   const jobId = pipeline.siloJobId
   const stream = useJobStream({ module: 'silo', jobId, enabled: started })
+  const { promptAfterDesignSuccess, feedbackModal } = useFeedbackSurveyPrompt()
+  const promptedJobRef = useRef<string | null>(null)
 
   const fetchMonitor = useCallback(async () => {
     if (!jobId) return null
@@ -66,6 +69,13 @@ export function SiloPage() {
       setCancelling(false)
     }
   }, [cancelling, stream.isCancelled, stream.isDone, stream.isRunning])
+
+  useEffect(() => {
+    if (!stream.isDone || stream.error || stream.isCancelled || !jobId) return
+    if (promptedJobRef.current === jobId) return
+    promptedJobRef.current = jobId
+    void promptAfterDesignSuccess()
+  }, [stream.isDone, stream.error, stream.isCancelled, jobId, promptAfterDesignSuccess])
 
   const startDesign = async () => {
     if (!pipeline.fileContent) {
@@ -210,6 +220,7 @@ export function SiloPage() {
       </p>
 
       {error && <StatusMessage type="error" message={error} />}
+      {feedbackModal}
 
       {!started && (
         <>

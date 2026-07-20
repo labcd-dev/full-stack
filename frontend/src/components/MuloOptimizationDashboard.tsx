@@ -55,14 +55,17 @@ export function MuloOptimizationDashboard({
   }, [poll.data])
 
   useEffect(() => {
-    if (stream.isDone && jobId) {
+    if (stream.isDone && jobId && !stream.error && !stream.isCancelled) {
       void muloApi.plotData(jobId).then((data) => setPlotData(data as unknown as MuloPlotData))
       void muloApi.state(jobId).then((state) => {
         setLocalState(state)
-        if (!stream.error) onComplete(state)
+        onComplete(state)
       })
+    } else if (stream.isDone && jobId) {
+      void muloApi.plotData(jobId).then((data) => setPlotData(data as unknown as MuloPlotData))
+      void muloApi.state(jobId).then((state) => setLocalState(state))
     }
-  }, [stream.isDone, jobId, stream.error, onComplete])
+  }, [stream.isDone, jobId, stream.error, stream.isCancelled, onComplete])
 
   useEffect(() => {
     if (!cancelling) return

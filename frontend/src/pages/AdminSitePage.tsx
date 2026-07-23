@@ -50,6 +50,50 @@ function TextField({
   )
 }
 
+function toHexColor(value: string, fallback = '#000000'): string {
+  const trimmed = value.trim()
+  if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) return trimmed.toLowerCase()
+  if (/^#[0-9a-fA-F]{3}$/.test(trimmed)) {
+    const [, r, g, b] = trimmed
+    return `#${r}${r}${g}${g}${b}${b}`.toLowerCase()
+  }
+  return fallback
+}
+
+function ColorField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+}) {
+  const pickerValue = toHexColor(value)
+
+  return (
+    <div>
+      <label className={fieldLabel}>{label}</label>
+      <div className="flex items-center gap-3">
+        <input
+          type="color"
+          value={pickerValue}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-11 w-14 shrink-0 cursor-pointer rounded-lg border border-border-input bg-surface-elevated p-1 shadow-sm"
+          aria-label={`${label} picker`}
+        />
+        <input
+          className={fieldInput}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="#000000"
+          spellCheck={false}
+        />
+      </div>
+    </div>
+  )
+}
+
 export function AdminSitePage() {
   const { user: currentUser } = useAuth()
   const [tab, setTab] = useState<Tab>('brand')
@@ -228,8 +272,8 @@ export function AdminSitePage() {
             previewClassName="h-16 w-auto max-w-[220px] object-contain"
           />
           <div className="grid gap-4 sm:grid-cols-2">
-            <TextField label="Primary color" value={brand.primary_color} onChange={(v) => setBrand({ ...brand, primary_color: v })} />
-            <TextField label="Secondary color" value={brand.secondary_color} onChange={(v) => setBrand({ ...brand, secondary_color: v })} />
+            <ColorField label="Primary color" value={brand.primary_color} onChange={(v) => setBrand({ ...brand, primary_color: v })} />
+            <ColorField label="Secondary color" value={brand.secondary_color} onChange={(v) => setBrand({ ...brand, secondary_color: v })} />
           </div>
           <TextField label="Sign in URL" value={brand.sign_in_url} onChange={(v) => setBrand({ ...brand, sign_in_url: v })} />
           <TextField label="Access platform URL" value={brand.access_platform_url} onChange={(v) => setBrand({ ...brand, access_platform_url: v })} />

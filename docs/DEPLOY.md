@@ -21,8 +21,8 @@ Browser → https://labcd.ai
 | `docker-compose.prod.yml` | Production services (db, api, frontend, caddy) |
 | `deploy/Caddyfile` | TLS + reverse proxy for `labcd.ai` / `www.labcd.ai` |
 | `deploy/env.production.example` | Template for server `.env` |
-| `deploy/deploy.sh` | Pull latest `main` and rebuild stack |
-| `.github/workflows/deploy.yml` | SSH deploy on push to `main` |
+| `deploy/deploy.sh` | Pull latest `master` and rebuild stack |
+| `.github/workflows/deploy.yml` | SSH deploy on push to `master` |
 
 Do **not** use root `docker-compose.yml` in production — it exposes Postgres and API ports.
 
@@ -138,7 +138,7 @@ On the server as `deploy`:
 
 ```bash
 cd /opt/labcd
-git checkout main
+git checkout master
 git pull
 
 cp deploy/env.production.example .env
@@ -192,7 +192,7 @@ Repo → **Settings → Secrets and variables → Actions** → add:
 | `DEPLOY_USER` | `deploy` |
 | `DEPLOY_SSH_KEY` | private key file contents (`labcd_deploy`, including `BEGIN`/`END` lines) |
 
-On every push to `main` (or manual **Run workflow**), Actions SSHs in and runs `deploy/deploy.sh`.
+On every push to `master` (or manual **Run workflow**), Actions SSHs in and runs `deploy/deploy.sh`.
 
 The server `.env` is **not** in git — edit secrets only on the server.
 
@@ -256,4 +256,4 @@ Also back up `uploads/` and `results/`.
 3. Copy `deploy/env.production.example` → `.env` and fill secrets.  
 4. `docker compose -f docker-compose.prod.yml --env-file .env up -d --build`.  
 5. Confirm https://labcd.ai and `/api/v1/health`.  
-6. Add GitHub deploy secrets; push to `main` for auto-deploy.
+6. Add GitHub deploy secrets; push to `master` for auto-deploy.

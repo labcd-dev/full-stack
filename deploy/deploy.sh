@@ -11,10 +11,17 @@ git checkout "${BRANCH}"
 git reset --hard "origin/${BRANCH}"
 
 echo "==> Building and starting production stack"
-docker compose -f docker-compose.prod.yml --env-file .env pull || true
-docker compose -f docker-compose.prod.yml --env-file .env up -d --build --remove-orphans
+COMPOSE=(docker compose -f docker-compose.prod.yml --env-file .env)
+
+"${COMPOSE[@]}" pull || true
+
+# Free host :80/:443 before recreate (avoids intermittent bind failures)
+"${COMPOSE[@]}" stop caddy || true
+"${COMPOSE[@]}" rm -f caddy || true
+
+"${COMPOSE[@]}" up -d --build --remove-orphans
 
 echo "==> Service status"
-docker compose -f docker-compose.prod.yml --env-file .env ps
+"${COMPOSE[@]}" ps
 
 echo "Deploy finished."

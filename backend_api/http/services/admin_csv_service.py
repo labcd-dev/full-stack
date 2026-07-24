@@ -141,6 +141,197 @@ def export_projects_csv(
     return rows_to_csv(rows, fieldnames)
 
 
+def _scenario_metrics_history(results: Any) -> list[dict[str, Any]]:
+    if not isinstance(results, dict):
+        return []
+    monitor_state = results.get("monitor_state")
+    if not isinstance(monitor_state, dict):
+        return []
+    history = monitor_state.get("scenario_metrics_history")
+    if not isinstance(history, list):
+        return []
+    return [entry for entry in history if isinstance(entry, dict)]
+
+
+def _metrics_dict(entry: dict[str, Any]) -> dict[str, Any]:
+    metrics = entry.get("metrics")
+    return metrics if isinstance(metrics, dict) else {}
+
+
+def _num(value: Any, default: float = 0.0) -> float:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value)
+    return default
+
+
+def _session_profiling_aggregates(history: list[dict[str, Any]]) -> dict[str, Any]:
+    n_total = len(history)
+    total_tokens_in = 0.0
+    total_tokens_out = 0.0
+    total_time = 0.0
+    total_cost = 0.0
+    total_api_fails = 0.0
+    n_successful = 0
+    score_sum = 0.0
+    successful_costs: list[float] = []
+
+    for entry in history:
+        metrics = _metrics_dict(entry)
+        total_tokens_in += _num(metrics.get("tokens_in"))
+        total_tokens_out += _num(metrics.get("tokens_out"))
+        total_time += _num(metrics.get("time"))
+        total_cost += _num(metrics.get("cost"))
+        total_api_fails += _num(metrics.get("api_failures"))
+        score_sum += _num(metrics.get("score"))
+        if metrics.get("stable"):
+            n_successful += 1
+        cps = metrics.get("cost_per_success")
+        if isinstance(cps, (int, float)) and not isinstance(cps, bool):
+            successful_costs.append(float(cps))
+
+    avg_cost_per_success = (
+        sum(successful_costs) / len(successful_costs) if successful_costs else None
+    )
+    avg_success_score = (score_sum / n_total) if n_total else 0.0
+
+    return {
+        "scenarios_completed": n_successful,
+        "scenarios_total": n_total,
+        "avg_success_score": round(avg_success_score, 4),
+        "total_api_failures": int(total_api_fails),
+        "avg_cost_per_success": (
+            round(avg_cost_per_success, 6) if avg_cost_per_success is not None else ""
+        ),
+        "total_tokens_in": int(total_tokens_in),
+        "total_tokens_out": int(total_tokens_out),
+        "total_wall_clock_s": round(total_time, 3),
+        "total_cost": round(total_cost, 6),
+    }
+
+
+def export_project_profiling_csv(
+    db: Session,
+    *,
+    user_id: int | None = None,
+    pipeline_type: str | None = None,
+) -> str:
+    """Export SILO computational profiling as a two-section CSV.
+
+    Sections:
+    - session_summary: one row per project with session-level aggregates
+    - per_scenario: one row per scenario with DevOps + token/cost fields
+    """
+    effective_pipeline = pipeline_type if pipeline_type else "siloDesign"
+    projects = project_service.list_all_projects(
+        db,
+        user_id=user_id,
+        pipeline_type=effective_pipeline,
+    )
+
+    session_fieldnames = [
+        "project_id",
+        "user_id",
+        "owner_email",
+        "title",
+        "pipeline_type",
+        "status",
+        "scenarios_completed",
+        "scenarios_total",
+        "avg_success_score",
+        "total_api_failures",
+        "avg_cost_per_success",
+        "total_tokens_in",
+        "total_tokens_out",
+        "total_wall_clock_s",
+        "total_cost",
+        "created_at",
+        "updated_at",
+    ]
+    scenario_fieldnames = [
+        "project_id",
+        "user_id",
+        "owner_email",
+        "title",
+        "pipeline_type",
+        "status",
+        "scenario_level",
+        "timestamp",
+        "controller_type",
+        "stable",
+        "score",
+        "controller_latency_s",
+        "api_failures",
+        "cost_per_success",
+        "tokens_in",
+        "tokens_out",
+        "time_s",
+        "cost",
+    ]
+
+    session_rows: list[dict[str, Any]] = []
+    scenario_rows: list[dict[str, Any]] = []
+
+    for project in projects:
+        if project.pipeline_type != "siloDesign":
+            continue
+        history = _scenario_metrics_history(project.results)
+        if not history:
+            continue
+
+        data = project_service.project_to_summary(project, include_owner=True)
+        aggregates = _session_profiling_aggregates(history)
+        session_rows.append(
+            {
+                "project_id": data["id"],
+                "user_id": data["user_id"],
+                "owner_email": data["owner_email"] or "",
+                "title": data["title"],
+                "pipeline_type": data["pipeline_type"],
+                "status": data["status"],
+                **aggregates,
+                "created_at": _iso(data["created_at"]),
+                "updated_at": _iso(data["updated_at"]),
+            }
+        )
+
+        for entry in history:
+            metrics = _metrics_dict(entry)
+            cps = metrics.get("cost_per_success")
+            latency = metrics.get("controller_latency_s", metrics.get("time", 0))
+            scenario_rows.append(
+                {
+                    "project_id": data["id"],
+                    "user_id": data["user_id"],
+                    "owner_email": data["owner_email"] or "",
+                    "title": data["title"],
+                    "pipeline_type": data["pipeline_type"],
+                    "status": data["status"],
+                    "scenario_level": entry.get("scenario_level", ""),
+                    "timestamp": entry.get("timestamp", ""),
+                    "controller_type": metrics.get("controller_type") or "",
+                    "stable": bool(metrics.get("stable", False)),
+                    "score": round(_num(metrics.get("score")), 4),
+                    "controller_latency_s": round(_num(latency), 3),
+                    "api_failures": int(_num(metrics.get("api_failures"))),
+                    "cost_per_success": (
+                        round(float(cps), 6)
+                        if isinstance(cps, (int, float)) and not isinstance(cps, bool)
+                        else ""
+                    ),
+                    "tokens_in": int(_num(metrics.get("tokens_in"))),
+                    "tokens_out": int(_num(metrics.get("tokens_out"))),
+                    "time_s": round(_num(metrics.get("time")), 3),
+                    "cost": round(_num(metrics.get("cost")), 6),
+                }
+            )
+
+    sections = [
+        _csv_section("session_summary", rows_to_csv(session_rows, session_fieldnames)),
+        _csv_section("per_scenario", rows_to_csv(scenario_rows, scenario_fieldnames)),
+    ]
+    return "\n".join(sections)
+
+
 def export_monitoring_csv() -> str:
     snapshot = monitoring_service.collect_snapshot()
     fieldnames = [

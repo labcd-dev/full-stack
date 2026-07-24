@@ -243,6 +243,11 @@ export const adminApi = {
       user_id: params?.user_id,
       pipeline_type: params?.pipeline_type,
     }),
+  downloadProjectsProfilingCsv: (params?: { user_id?: number; pipeline_type?: string }) =>
+    downloadAdminCsv('/admin/projects/profiling/export.csv', {
+      user_id: params?.user_id,
+      pipeline_type: params?.pipeline_type,
+    }),
   downloadMonitoringCsv: () => downloadAdminCsv('/admin/monitoring/export.csv'),
   downloadOverviewCsv: () => downloadAdminCsv('/admin/overview/export.csv'),
   downloadProfileSurveyCsv: () => downloadAdminCsv('/admin/survey/responses/profile/export.csv'),

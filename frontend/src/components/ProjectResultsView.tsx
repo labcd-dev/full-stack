@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { ProjectPipelineType } from '../api/types'
+import { ComputationalProfilingPanel } from './ComputationalProfilingPanel'
 import { DesignIterationReport } from './DesignIterationReport'
 import { DesignMonitorDashboard } from './DesignMonitorDashboard'
 import { CodePreview } from './CodePreview'
@@ -78,6 +79,15 @@ function SiloResults({ monitorState }: { monitorState: Record<string, unknown> }
         ) : (
           <p className={mutedText}>No agent iteration data was saved for this project.</p>
         ),
+    },
+    {
+      id: 'summary',
+      label: 'Summary',
+      content: (
+        <ComputationalProfilingPanel
+          scenarioMetricsHistory={monitorState.scenario_metrics_history}
+        />
+      ),
     },
     {
       id: 'raw',

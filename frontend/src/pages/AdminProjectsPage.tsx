@@ -84,24 +84,47 @@ export function AdminProjectsPage() {
             View and manage design projects created by users (uploaded files and saved results).
           </p>
         </div>
-        <AdminDownloadCsvButton
-          onClick={async () => {
-            setError(null)
-            try {
-              await downloadCsv(
-                () =>
-                  adminApi.downloadProjectsCsv({
-                    user_id: userId ? Number(userId) : undefined,
-                    pipeline_type: pipelineFilter || undefined,
-                  }),
-                'projects.csv',
-              )
-            } catch (err) {
-              setError(err instanceof Error ? err.message : 'Failed to download CSV')
-            }
-          }}
-          disabled={loading}
-        />
+        <div className="flex flex-wrap gap-2">
+          <AdminDownloadCsvButton
+            onClick={async () => {
+              setError(null)
+              try {
+                await downloadCsv(
+                  () =>
+                    adminApi.downloadProjectsCsv({
+                      user_id: userId ? Number(userId) : undefined,
+                      pipeline_type: pipelineFilter || undefined,
+                    }),
+                  'projects.csv',
+                )
+              } catch (err) {
+                setError(err instanceof Error ? err.message : 'Failed to download CSV')
+              }
+            }}
+            disabled={loading}
+          />
+          <AdminDownloadCsvButton
+            label="Download profiling CSV"
+            onClick={async () => {
+              setError(null)
+              try {
+                await downloadCsv(
+                  () =>
+                    adminApi.downloadProjectsProfilingCsv({
+                      user_id: userId ? Number(userId) : undefined,
+                      pipeline_type: pipelineFilter || undefined,
+                    }),
+                  'project_profiling.csv',
+                )
+              } catch (err) {
+                setError(
+                  err instanceof Error ? err.message : 'Failed to download profiling CSV',
+                )
+              }
+            }}
+            disabled={loading}
+          />
+        </div>
       </header>
 
       {error && <StatusMessage type="error" message={error} />}

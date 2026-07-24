@@ -24,6 +24,7 @@ from backend_api.http.services.admin_csv_service import (
     export_monitoring_csv,
     export_overview_csv,
     export_plans_csv,
+    export_project_profiling_csv,
     export_projects_csv,
     export_users_csv,
 )
@@ -388,6 +389,21 @@ def export_projects_csv_endpoint(
         pipeline_type=pipeline_type,
     )
     return _csv_response(content, "projects.csv")
+
+
+@router.get("/projects/profiling/export.csv")
+def export_projects_profiling_csv_endpoint(
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+    user_id: int | None = Query(default=None),
+    pipeline_type: str | None = Query(default=None),
+) -> StreamingResponse:
+    content = export_project_profiling_csv(
+        db,
+        user_id=user_id,
+        pipeline_type=pipeline_type,
+    )
+    return _csv_response(content, "project_profiling.csv")
 
 
 @router.get("/projects/{project_id}", response_model=ProjectDetail)

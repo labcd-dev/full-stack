@@ -3,6 +3,7 @@ import { OctagonX } from 'lucide-react'
 import { healthApi, jobsApi, siloApi } from '../api/endpoints'
 import { ActivityLog } from '../components/ActivityLog'
 import { DesignIterationReport } from '../components/DesignIterationReport'
+import { ComputationalProfilingPanel } from '../components/ComputationalProfilingPanel'
 import { DesignMonitorDashboard } from '../components/DesignMonitorDashboard'
 import { CodePreview } from '../components/CodePreview'
 import { ModelSelect } from '../components/ModelSelect'
@@ -129,6 +130,7 @@ export function SiloPage() {
   const progressHistory = (monitorState?.progress_history ?? []) as Array<Record<string, unknown>>
   const stateHistory = (monitorState?.state_history ?? []) as Array<Record<string, unknown>>
   const currentState = (monitorState?.current_state ?? null) as Record<string, unknown> | null
+  const scenarioMetricsHistory = monitorState?.scenario_metrics_history
   const pollProgress =
     progressHistory.length > 0 ? Math.min(progressHistory.length * 5, 95) / 100 : 0
   const latestProgress = stream.isDone ? 1 : Math.max(pollProgress, stream.progress)
@@ -204,6 +206,15 @@ export function SiloPage() {
         ) : (
           <p className={mutedText}>No optimization iterations yet.</p>
         ),
+    },
+    {
+      id: 'summary',
+      label: 'Summary',
+      content: started ? (
+        <ComputationalProfilingPanel scenarioMetricsHistory={scenarioMetricsHistory} />
+      ) : (
+        <p className={mutedText}>Start a design to see computational profiling.</p>
+      ),
     },
     {
       id: 'logs',
